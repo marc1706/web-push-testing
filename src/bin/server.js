@@ -14,6 +14,8 @@
 const testingServer = require('../server.js');
 
 const serverPort = JSON.parse(process.argv[2]);
+const pushApiModel = require('../pushApiModel.js');
+const apiModel = new pushApiModel();
 
-const server = new testingServer(serverPort);
+const server = new testingServer(apiModel, serverPort);
 server.startServer();
