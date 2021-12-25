@@ -1,7 +1,7 @@
 {
   "name": "web-push-testing",
   "version": "0.1.0",
-  "description": "A service that can be run to test against a mocked API endpoint for web push without relying on flaky browser drivers.",
+  "description": "A server that can be run to test against a mocked API endpoint for web push without relying on flaky browser drivers.",
   "main": "server.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
