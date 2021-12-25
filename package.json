@@ -1,0 +1,18 @@
+{
+  "name": "web-push-testing",
+  "version": "0.1.0",
+  "description": "A service that can be run to test against a mocked API endpoint for web push without relying on flaky browser drivers.",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "Marc Alexander",
+  "license": "MIT",
+  "dependencies": {
+    "arg": "^5.0.1",
+    "express": "^4.17.2",
+    "node-persist": "^2.1.0",
+    "ps-node": "^0.1.6"
+  }
+}
