@@ -160,17 +160,12 @@ class PushApiModel {
         };
     }
 
-    async validateAuthorizationHeader(clientHash, authorization) {
-        const [type, token] = authorization.split(' ');
-        if (type !== 'WebPush' || typeof token === 'undefined') {
-            return false;
-        }
-
-        const jwt = require('jsonwebtoken');
+    async validateAuthorizationHeader(clientHash, jwt) {
+        const jsonwebtoken = require('jsonwebtoken');
         try {
             const applicationKey = await this.importVapidKey(this.decodeBase64UrlString(this.subscriptions[clientHash].applicationServerKey));
             const publicKeyPem = await this.exportPemKey(applicationKey);
-            jwt.verify(token, publicKeyPem, {algorithms: ['ES256']}, null);
+            jsonwebtoken.verify(jwt, publicKeyPem, {algorithms: ['ES256']}, null);
         } catch (err) {
             // err
             console.error(err);
@@ -212,13 +207,18 @@ class PushApiModel {
         const currentSubscription = this.subscriptions[clientHash];
 
         this.validateNotificationHeaders(pushHeaders);
-        await this.validateAuthorizationHeader(clientHash, pushHeaders.authorization);
 
         let eceParameters = {
             version: pushHeaders.encoding,
         };
 
         if (pushHeaders.encoding === 'aesgcm') {
+            const [type, jwt] = pushHeaders.authorization.split(' ');
+            if (type !== 'WebPush' || typeof jwt === 'undefined') {
+                throw new Error('Invalid Authorization header sent');
+            }
+            await this.validateAuthorizationHeader(clientHash, jwt);
+
             let [dhType, notificationDh, ecdsaType, notificationEcdsa] = pushHeaders.cryptoKey.split(/[;=]/);
             const notificationDhBytes = this.base64UrlDecode(notificationDh);
             if (dhType !== 'dh' || this.base64UrlDecode(notificationDh).length !== 65  || notificationDhBytes[0] !== 4) {
@@ -227,9 +227,22 @@ class PushApiModel {
             this.validateCrypto(ecdsaType, notificationEcdsa, currentSubscription.applicationServerKey);
 
             eceParameters.dh = notificationDhBytes;
-        } else {
-            let [ecdsaType, notificationEcdsa2] = pushHeaders.cryptoKey.split(/[;=]/);
-            this.validateCrypto(ecdsaType, notificationEcdsa2, currentSubscription.applicationServerKey);
+            eceParameters.salt = pushHeaders.encryption.substr('salt='.length);
+        } else if (pushHeaders.authorization.substr(0, 'key='.length) !== 'key=') {
+            let [vapidHeaderString, notificationApplicationServerKey] = pushHeaders.authorization.split(',');
+            notificationApplicationServerKey = notificationApplicationServerKey.trim();
+            if (vapidHeaderString.substr(0, 'vapid t='.length) !== 'vapid t='
+                || notificationApplicationServerKey.substr(0, 'k='.length) !== 'k=') {
+                throw new Error('Invalid Authorization header sent');
+            }
+
+            this.validateCrypto(
+                'p256ecdsa',
+                notificationApplicationServerKey.substr('k='.length),
+                currentSubscription.applicationServerKey
+            );
+
+            await this.validateAuthorizationHeader(clientHash, vapidHeaderString.substr('vapid t='.length));
         }
 
         const crypto = require('crypto');
@@ -238,7 +251,6 @@ class PushApiModel {
 
         const ece = require('http_ece');
         eceParameters.privateKey = newDh;
-        eceParameters.salt = pushHeaders.encryption.split('=')[1];
         eceParameters.authSecret = this.base64UrlDecode(currentSubscription.auth);
 
         const decryptedText = ece.decrypt(body, eceParameters);
@@ -247,6 +259,17 @@ class PushApiModel {
             this.messages[clientHash] = [decryptedText.toString('utf-8')];
         } else {
             this.messages[clientHash].push(decryptedText.toString('utf-8'));
+        }
+    }
+
+    getNotifications(requestBody) {
+        if (!requestBody.hasOwnProperty('clientHash') || !this.subscriptions.hasOwnProperty(requestBody.clientHash)) {
+            throw new RangeError('Client not subscribed');
+        }
+        const clientHash = requestBody.clientHash;
+
+        return {
+            messages: this.messages.hasOwnProperty(clientHash) ? this.messages[clientHash] : [],
         }
     }
 }

@@ -24,7 +24,8 @@ class WebPushTestingServer {
         this._app.use(express.json());
         // Workaround to allow content-encoding outside bodyParser defaults
         this._app.use(function (req, res, next) {
-            if (req.headers.hasOwnProperty('content-encoding') && req.headers['content-encoding'] === 'aesgcm') {
+            if (req.headers.hasOwnProperty('content-encoding')
+                && (req.headers['content-encoding'] === 'aesgcm' || req.headers['content-encoding'] === 'aes128gcm')) {
                 req.headers['x-content-encoding'] = req.headers['content-encoding'];
                 delete req.headers['content-encoding'];
             }
@@ -47,19 +48,24 @@ class WebPushTestingServer {
     }
 
     setRequestHandlers() {
-        this._app.post('/start-test-suite', this.startTestSuite);
         this._app.post('/status', this.getStatus);
-        this._app.post('/stop-test-suite', this.stopTestSuite);
         this._app.post('/subscribe', this.subscribe);
         this._app.post('/notify/:clientHash', this.handleNotification);
+        this._app.post('/get-notifications', this.getNotifications);
     }
 
-    startTestSuite(req, res, next) {
-
-    }
-
-    stopTestSuite(req, res, next) {
-
+    getNotifications(req, res) {
+        try {
+            const notificationsData = apiModel.getNotifications(req.body)
+            res.status(200).send({data: notificationsData});
+        } catch (err) {
+            const status = err instanceof RangeError ? 400 : 410;
+            res.status(status).send({
+                error: {
+                    message: err.message,
+                }
+            });
+        }
     }
 
     getStatus(req, res) {
@@ -97,11 +103,6 @@ class WebPushTestingServer {
             );
             res.status(201).send(notificationReturn);
         } catch (err) {
-            if (err instanceof RangeError) {
-                res.status(403).send({ error: { message: err.message }});
-                return;
-            }
-
             const status = err instanceof RangeError ? 400 : 410;
             res.status(status).send({
                 error: {
