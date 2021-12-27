@@ -12,6 +12,7 @@
   "dependencies": {
     "arg": "^5.0.1",
     "express": "^4.17.2",
+    "http_ece": "^1.1.0",
     "jsonwebtoken": "^8.5.1",
     "node-persist": "^2.1.0",
     "ps-node": "^0.1.6",

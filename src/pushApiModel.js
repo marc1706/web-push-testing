@@ -13,6 +13,7 @@ class PushApiModel {
     constructor() {
         this.notifyUrl = '';
         this.subscriptions = {};
+        this.messages = {};
     }
 
     async subscribe(options) {
@@ -37,7 +38,7 @@ class PushApiModel {
         }
     }
 
-    keyStringToBytesArray(keyString) {
+    stringToBytesArray(keyString) {
         const rawString = atob(keyString);
         const len = rawString.length;
         const bytes = new Uint8Array(len);
@@ -57,16 +58,6 @@ class PushApiModel {
         return btoa(res);
     }
 
-    async exportRawKey(key) {
-        const { subtle } = require('crypto').webcrypto;
-        const exported = await subtle.exportKey(
-            "raw",
-            key
-        );
-
-        return this.bytesArrayToKeyString(exported);
-    }
-
     async exportPemKey(key) {
         const { subtle } = require('crypto').webcrypto;
         const exported = await subtle.exportKey(
@@ -82,7 +73,7 @@ class PushApiModel {
     }
 
     async importVapidKey(keyString) {
-        const bytes = this.keyStringToBytesArray(keyString);
+        const bytes = this.stringToBytesArray(keyString);
         const { subtle } = require('crypto').webcrypto;
 
         try {
@@ -97,7 +88,7 @@ class PushApiModel {
                 []
             );
         } catch (err) {
-            console.log(err);
+            console.error(err);
         }
     }
 
@@ -108,6 +99,16 @@ class PushApiModel {
         return ecdh;
     }
 
+    base64UrlDecode(input) {
+        const urlSafeBase64 = require('urlsafe-base64');
+        return urlSafeBase64.decode(input);
+    }
+
+    base64UrlEncode(input) {
+        const urlSafeBase64 = require('urlsafe-base64');
+        return urlSafeBase64.encode(input);
+    }
+
     /**
      * Decode string from base64url format according to RFC 7515:
      * https://www.rfc-editor.org/rfc/rfc7515#appendix-C
@@ -116,9 +117,7 @@ class PushApiModel {
      * @returns {string} Base64 encoded string
      */
     decodeBase64UrlString(string) {
-        const urlSafeBase64 = require('urlsafe-base64');
-
-        return urlSafeBase64.decode(string).toString('base64');
+        return this.base64UrlDecode(string).toString('base64');
     }
 
     /**
@@ -129,8 +128,7 @@ class PushApiModel {
      * @returns {string} Base64url encoded string
      */
     encodeBase64UrlString(string) {
-        const urlSafeBase64 = require('urlsafe-base64');
-        return urlSafeBase64.encode(string).toString('base64');
+        return this.base64UrlEncode(string).toString('base64');
     }
 
     async isValidVapidKey(key) {
@@ -152,15 +150,14 @@ class PushApiModel {
             auth: uniqueAuthKey
         };
         this.subscriptions[uniqueClientHash] = subscriptionData;
-        const subscriptionReturn = {
+        return {
             endpoint: this.notifyUrl + uniqueClientHash,
             keys: {
                 p256dh: this.encodeBase64UrlString(subscriptionData.publicKey),
                 auth: this.encodeBase64UrlString(subscriptionData.auth),
-            }
+            },
+            clientHash: uniqueClientHash,
         };
-        console.log(subscriptionReturn);
-        return subscriptionReturn;
     }
 
     async validateAuthorizationHeader(clientHash, authorization) {
@@ -174,7 +171,7 @@ class PushApiModel {
             const applicationKey = await this.importVapidKey(this.decodeBase64UrlString(this.subscriptions[clientHash].applicationServerKey));
             const publicKeyPem = await this.exportPemKey(applicationKey);
             jwt.verify(token, publicKeyPem, {algorithms: ['ES256']}, null);
-        } catch(err) {
+        } catch (err) {
             // err
             console.error(err);
             throw new RangeError('Invalid authentication token supplied');
@@ -182,7 +179,7 @@ class PushApiModel {
     }
 
     validateNotificationHeaders(headers) {
-        if (!headers.hasOwnProperty('encoding') || headers.encoding !== 'aesgcm') {
+        if (!headers.hasOwnProperty('encoding') || (headers.encoding !== 'aesgcm' && headers.encoding !== 'aes128gcm')) {
             throw new Error('Unsupported encoding');
         }
 
@@ -195,23 +192,17 @@ class PushApiModel {
         }
     }
 
-    hkdf(salt, ikm, info, length) {
-        const crypto = require("crypto");
+    validateCrypto(type, publicServerKey, savedPublicServerKey) {
+        if (type !== 'p256ecdsa') {
+            throw new Error('Invalid Crypto-Key header sent');
+        }
 
-        // Extract
-        const keyHmac = crypto.createHmac('sha256', salt);
-        keyHmac.update(ikm);
-        const key = keyHmac.digest();
-
-        // Expand
-        const infoHmac = crypto.createHmac('sha256', key);
-        infoHmac.update(info);
-
-        // A one byte long buffer containing only 0x01
-        const ONE_BUFFER = Buffer.alloc(1, 1);
-        infoHmac.update(ONE_BUFFER);
-
-        return infoHmac.digest().slice(0, length);
+        const crypto = require('crypto');
+        const notificationEcdsaBytes = this.base64UrlDecode(publicServerKey);
+        const serverKeyBytes = this.base64UrlDecode(savedPublicServerKey);
+        if (!crypto.timingSafeEqual(notificationEcdsaBytes, serverKeyBytes)) {
+            throw new Error('Invalid Crypto-Key header sent');
+        }
     }
 
     async handleNotification(clientHash, pushHeaders, body) {
@@ -223,57 +214,40 @@ class PushApiModel {
         this.validateNotificationHeaders(pushHeaders);
         await this.validateAuthorizationHeader(clientHash, pushHeaders.authorization);
 
+        let eceParameters = {
+            version: pushHeaders.encoding,
+        };
 
-        let [dhType, notificationDh, ecdsaType, notificationEcdsa] = pushHeaders.cryptoKey.split(/[;=]/);
-        if (dhType !== 'dh' || ecdsaType !== 'p256ecdsa') {
-            throw new Error('Invalid Crypto-Key header sent');
+        if (pushHeaders.encoding === 'aesgcm') {
+            let [dhType, notificationDh, ecdsaType, notificationEcdsa] = pushHeaders.cryptoKey.split(/[;=]/);
+            const notificationDhBytes = this.base64UrlDecode(notificationDh);
+            if (dhType !== 'dh' || this.base64UrlDecode(notificationDh).length !== 65  || notificationDhBytes[0] !== 4) {
+                throw new Error('Invalid Crypto-Key header sent');
+            }
+            this.validateCrypto(ecdsaType, notificationEcdsa, currentSubscription.applicationServerKey);
+
+            eceParameters.dh = notificationDhBytes;
+        } else {
+            let [ecdsaType, notificationEcdsa2] = pushHeaders.cryptoKey.split(/[;=]/);
+            this.validateCrypto(ecdsaType, notificationEcdsa2, currentSubscription.applicationServerKey);
         }
 
         const crypto = require('crypto');
-        const notificationEcdsaBytes = this.keyStringToBytesArray(this.decodeBase64UrlString(notificationEcdsa));
-        const serverKeyBytes = this.keyStringToBytesArray(this.decodeBase64UrlString(currentSubscription.applicationServerKey));
-        if (!crypto.timingSafeEqual(notificationEcdsaBytes, serverKeyBytes)) {
-            throw new Error('Invalid Crypto-Key header sent');
-        }
-
-        let serverDh = currentSubscription.subscriptionDh;
         const newDh = crypto.createECDH('prime256v1');
-        newDh.setPrivateKey(serverDh.getPrivateKey());
-        const notificationDhBytes = this.keyStringToBytesArray(this.decodeBase64UrlString(notificationDh));
-        const sharedSecret = newDh.computeSecret(notificationDhBytes);
+        newDh.setPrivateKey(currentSubscription.subscriptionDh.getPrivateKey());
 
-        // Create ikm
-        const encoder = new TextEncoder();
-        const authEncoding = encoder.encode("Content-Encoding: auth\0");
-        const auth = this.keyStringToBytesArray(this.decodeBase64UrlString(currentSubscription.auth));
-        const ikm = this.hkdf(auth, sharedSecret, authEncoding, 32);
+        const ece = require('http_ece');
+        eceParameters.privateKey = newDh;
+        eceParameters.salt = pushHeaders.encryption.split('=')[1];
+        eceParameters.authSecret = this.base64UrlDecode(currentSubscription.auth);
 
-        // Create context
-        const subscriptionPublicArray = serverDh.getPublicKey();
-        const subscriptionPubKeyLength = Buffer.alloc(2, "\0" + String.fromCodePoint(subscriptionPublicArray.length));
-        const localPublicKeyLength = Buffer.alloc(2, "\0" + String.fromCodePoint(notificationDhBytes.length));
-        const context = Buffer.concat([
-            encoder.encode('P-256\0'),
-            subscriptionPubKeyLength,
-            subscriptionPublicArray,
-            localPublicKeyLength,
-            notificationDhBytes
-        ]);
+        const decryptedText = ece.decrypt(body, eceParameters);
 
-        // Create content encryption key
-        const cekEncBuffer = encoder.encode('Content-Encoding: aesgcm\0');
-        const contentEncryptionKeyInfo = Buffer.concat([cekEncBuffer, context]);
-        const salt = this.keyStringToBytesArray(this.decodeBase64UrlString(pushHeaders.encryption.split('=')[1]));
-        const contentEncryptionKey = this.hkdf(salt, ikm, contentEncryptionKeyInfo, 16);
-
-        // Create nonce
-        const nonceEncBuffer = encoder.encode('Content-Encoding: nonce\0');
-        const nonceInfo = Buffer.concat([nonceEncBuffer, context]);
-        const nonce = this.hkdf(salt, ikm, nonceInfo, 12);
-
-        // @todo: now that we have all the data, start implementing the decryption
-        console.log(pushHeaders);
-        console.log(body);
+        if (!this.messages.hasOwnProperty(clientHash)) {
+            this.messages[clientHash] = [decryptedText.toString('utf-8')];
+        } else {
+            this.messages[clientHash].push(decryptedText.toString('utf-8'));
+        }
     }
 }
 
