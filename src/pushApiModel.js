@@ -101,16 +101,11 @@ class PushApiModel {
         }
     }
 
-    async generateSubscriptionDhKeypair() {
-        const { subtle } = require('crypto').webcrypto;
-        return await subtle.generateKey(
-            {
-                name: "ECDH",
-                namedCurve: "P-256"
-            },
-            true,
-            ["deriveBits", "deriveKey"]
-        );
+    async generateSubscriptionEcdh() {
+        const crypto = require('crypto');
+        const ecdh = crypto.createECDH('prime256v1');
+        ecdh.generateKeys();
+        return ecdh;
     }
 
     /**
@@ -148,19 +143,19 @@ class PushApiModel {
         const { randomBytes } = require('crypto');
         const uniqueClientHash = randomBytes(32).toString('hex');
         const uniqueAuthKey = this.bytesArrayToKeyString(randomBytes(16));
-        const subscriptionDh = await this.generateSubscriptionDhKeypair();
+        const subscriptionDh = await this.generateSubscriptionEcdh();
 
         let subscriptionData = {
             applicationServerKey: options.applicationServerKey,
-            publicKey: subscriptionDh.publicKey,
-            privateKey: subscriptionDh.privateKey,
+            publicKey: subscriptionDh.getPublicKey('base64'),
+            subscriptionDh: subscriptionDh,
             auth: uniqueAuthKey
         };
         this.subscriptions[uniqueClientHash] = subscriptionData;
         const subscriptionReturn = {
             endpoint: this.notifyUrl + uniqueClientHash,
             keys: {
-                p256dh: this.encodeBase64UrlString(await this.exportRawKey(subscriptionDh.publicKey)),
+                p256dh: this.encodeBase64UrlString(subscriptionData.publicKey),
                 auth: this.encodeBase64UrlString(subscriptionData.auth),
             }
         };
@@ -200,6 +195,25 @@ class PushApiModel {
         }
     }
 
+    hkdf(salt, ikm, info, length) {
+        const crypto = require("crypto");
+
+        // Extract
+        const keyHmac = crypto.createHmac('sha256', salt);
+        keyHmac.update(ikm);
+        const key = keyHmac.digest();
+
+        // Expand
+        const infoHmac = crypto.createHmac('sha256', key);
+        infoHmac.update(info);
+
+        // A one byte long buffer containing only 0x01
+        const ONE_BUFFER = Buffer.alloc(1, 1);
+        infoHmac.update(ONE_BUFFER);
+
+        return infoHmac.digest().slice(0, length);
+    }
+
     async handleNotification(clientHash, pushHeaders, body) {
         if (!this.subscriptions.hasOwnProperty(clientHash)) {
             throw new RangeError('Client not subscribed');
@@ -216,10 +230,48 @@ class PushApiModel {
         }
 
         const crypto = require('crypto');
-        if (!crypto.timingSafeEqual(notificationEcdsa, currentSubscription.applicationServerKey)) {
+        const notificationEcdsaBytes = this.keyStringToBytesArray(this.decodeBase64UrlString(notificationEcdsa));
+        const serverKeyBytes = this.keyStringToBytesArray(this.decodeBase64UrlString(currentSubscription.applicationServerKey));
+        if (!crypto.timingSafeEqual(notificationEcdsaBytes, serverKeyBytes)) {
             throw new Error('Invalid Crypto-Key header sent');
         }
 
+        let serverDh = currentSubscription.subscriptionDh;
+        const newDh = crypto.createECDH('prime256v1');
+        newDh.setPrivateKey(serverDh.getPrivateKey());
+        const notificationDhBytes = this.keyStringToBytesArray(this.decodeBase64UrlString(notificationDh));
+        const sharedSecret = newDh.computeSecret(notificationDhBytes);
+
+        // Create ikm
+        const encoder = new TextEncoder();
+        const authEncoding = encoder.encode("Content-Encoding: auth\0");
+        const auth = this.keyStringToBytesArray(this.decodeBase64UrlString(currentSubscription.auth));
+        const ikm = this.hkdf(auth, sharedSecret, authEncoding, 32);
+
+        // Create context
+        const subscriptionPublicArray = serverDh.getPublicKey();
+        const subscriptionPubKeyLength = Buffer.alloc(2, "\0" + String.fromCodePoint(subscriptionPublicArray.length));
+        const localPublicKeyLength = Buffer.alloc(2, "\0" + String.fromCodePoint(notificationDhBytes.length));
+        const context = Buffer.concat([
+            encoder.encode('P-256\0'),
+            subscriptionPubKeyLength,
+            subscriptionPublicArray,
+            localPublicKeyLength,
+            notificationDhBytes
+        ]);
+
+        // Create content encryption key
+        const cekEncBuffer = encoder.encode('Content-Encoding: aesgcm\0');
+        const contentEncryptionKeyInfo = Buffer.concat([cekEncBuffer, context]);
+        const salt = this.keyStringToBytesArray(this.decodeBase64UrlString(pushHeaders.encryption.split('=')[1]));
+        const contentEncryptionKey = this.hkdf(salt, ikm, contentEncryptionKeyInfo, 16);
+
+        // Create nonce
+        const nonceEncBuffer = encoder.encode('Content-Encoding: nonce\0');
+        const nonceInfo = Buffer.concat([nonceEncBuffer, context]);
+        const nonce = this.hkdf(salt, ikm, nonceInfo, 12);
+
+        // @todo: now that we have all the data, start implementing the decryption
         console.log(pushHeaders);
         console.log(body);
     }
