@@ -98,12 +98,13 @@ class WebPushTestingServer {
                 authorization: req.get('Authorization'),
                 ttl: req.get('TTL'),
             }
-            const notificationReturn = await apiModel.handleNotification(
+            return apiModel.handleNotification(
                 clientHash,
                 pushHeaders,
                 req.body
-            );
-            res.status(201).send(notificationReturn);
+            ).then((notificationReturn) => {
+                res.status(201).send(notificationReturn);
+            });
         } catch (err) {
             const status = err instanceof RangeError ? 400 : 410;
             res.status(status).send({

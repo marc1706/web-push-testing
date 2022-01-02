@@ -17,8 +17,10 @@ class PushApiModel {
     }
 
     async subscribe(options) {
-        await this.validateSubscribeOptions(options);
-        return this.createSubscription(options);
+        return this.validateSubscribeOptions(options)
+            .then(() => {
+                return this.createSubscription(options);
+            });
     }
 
     async validateSubscribeOptions(options) {
@@ -133,38 +135,44 @@ class PushApiModel {
 
     async isValidVapidKey(key) {
         key = this.decodeBase64UrlString(key);
-        let cryptoKey = await this.importVapidKey(key);
-        return typeof cryptoKey !== "undefined" && cryptoKey.type === 'public';
+        return this.importVapidKey(key)
+            .then((cryptoKey) => {
+                return typeof cryptoKey !== "undefined" && cryptoKey.type === 'public';
+            });
     }
 
     async createSubscription(options) {
         const { randomBytes } = require('crypto');
         const uniqueClientHash = randomBytes(32).toString('hex');
         const uniqueAuthKey = this.bytesArrayToKeyString(randomBytes(16));
-        const subscriptionDh = await this.generateSubscriptionEcdh();
-
-        let subscriptionData = {
-            applicationServerKey: options.applicationServerKey,
-            publicKey: subscriptionDh.getPublicKey('base64'),
-            subscriptionDh: subscriptionDh,
-            auth: uniqueAuthKey
-        };
-        this.subscriptions[uniqueClientHash] = subscriptionData;
-        return {
-            endpoint: this.notifyUrl + uniqueClientHash,
-            keys: {
-                p256dh: this.encodeBase64UrlString(subscriptionData.publicKey),
-                auth: this.encodeBase64UrlString(subscriptionData.auth),
-            },
-            clientHash: uniqueClientHash,
-        };
+        return this.generateSubscriptionEcdh()
+            .then((subscriptionDh) => {
+                let subscriptionData = {
+                    applicationServerKey: options.applicationServerKey,
+                    publicKey: subscriptionDh.getPublicKey('base64'),
+                    subscriptionDh: subscriptionDh,
+                    auth: uniqueAuthKey
+                };
+                this.subscriptions[uniqueClientHash] = subscriptionData;
+                return {
+                    endpoint: this.notifyUrl + uniqueClientHash,
+                    keys: {
+                        p256dh: this.encodeBase64UrlString(subscriptionData.publicKey),
+                        auth: this.encodeBase64UrlString(subscriptionData.auth),
+                    },
+                    clientHash: uniqueClientHash,
+                };
+            });
     }
 
     async validateAuthorizationHeader(clientHash, jwt) {
         const jsonwebtoken = require('jsonwebtoken');
         try {
-            const applicationKey = await this.importVapidKey(this.decodeBase64UrlString(this.subscriptions[clientHash].applicationServerKey));
-            const publicKeyPem = await this.exportPemKey(applicationKey);
+            const publicKeyPem = await this.importVapidKey(
+                this.decodeBase64UrlString(this.subscriptions[clientHash].applicationServerKey)
+            ).then((applicationKey) => {
+                return this.exportPemKey(applicationKey);
+            });
             jsonwebtoken.verify(jwt, publicKeyPem, {algorithms: ['ES256']}, null);
         } catch (err) {
             // err
