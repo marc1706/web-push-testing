@@ -75,8 +75,10 @@ class WebPushTestingServer {
     async subscribe(req, res) {
         try {
             const subscriptionOptions = req.body;
-            const subscriptionData = await apiModel.subscribe(subscriptionOptions);
-            res.status(200).send({data: subscriptionData});
+            apiModel.subscribe(subscriptionOptions)
+                .then((subscriptionData) => {
+                    res.status(200).send({data: subscriptionData});
+                })
         } catch (err) {
             res.status(400).send({
                 error: {

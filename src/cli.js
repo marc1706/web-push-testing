@@ -38,7 +38,8 @@ class WebPushTestingCli
             $this.handleCliArguments(cliArgs);
         } catch (err) {
             if (err.code === 'ARG_UNKNOWN_OPTION') {
-                console.log(err.message);
+                console.error(err.message);
+                process.exit(1);
             } else {
                 throw err;
             }
@@ -47,21 +48,22 @@ class WebPushTestingCli
 
     handleCliArguments(cliArgs) {
         if (cliArgs.hasOwnProperty('--help')) {
-            this.printHelpText();
+            return this.printHelpText();
         }
 
         if (cliArgs.hasOwnProperty('--version')) {
-            this.printVersion();
+            return this.printVersion();
         }
 
         if (cliArgs.hasOwnProperty('--port')) {
             this.port = cliArgs['--port'];
         }
 
-        if (cliArgs.hasOwnProperty('_')) {
-            this.handleCommand(cliArgs);
+        if (cliArgs.hasOwnProperty('_') && cliArgs._.length > 0) {
+            return this.handleCommand(cliArgs);
         } else {
             console.error('No command passed.');
+            process.exit(1);
         }
     }
 
@@ -107,6 +109,7 @@ class WebPushTestingCli
             this.stopService();
         } else {
             console.error('Invalid command: ' + command);
+            process.exit(1);
         }
     }
 
@@ -124,7 +127,7 @@ class WebPushTestingCli
         if (processData.hasOwnProperty(this.port)) {
             console.log('Server seems to already run on port ' + this.port);
             console.log('Stop server first before starting it on the same port.');
-            process.exit(0);
+            process.exit(1);
         }
 
         console.log('Starting server on port ' + this.port);
@@ -161,17 +164,13 @@ class WebPushTestingCli
 
         const ps = require('ps-node');
 
-        ps.kill(processData[port], function(err) {
-            if (err) {
-                console.error('Unable to stop server at port ' + port + ': ' + err);
-                process.exit(1);
-            } else {
-                console.log('Server at port %d has been stopped.', port);
-                delete processData[port];
-                storage.setItemSync('processData', processData);
-            }
+        ps.kill(processData[port], function() {
+            // Assume we were successful, no way of knowing e.g. on WSL2
+            console.log('Server at port %d has been stopped.', port);
+            delete processData[port];
+            storage.setItemSync('processData', processData);
+            process.exit(0);
         });
-
     }
 }
 
