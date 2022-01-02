@@ -40,24 +40,8 @@ class PushApiModel {
         }
     }
 
-    stringToBytesArray(keyString) {
-        const rawString = atob(keyString);
-        const len = rawString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i += 1) {
-            bytes[i] = rawString.charCodeAt(i);
-        }
-
-        return bytes;
-    }
-
     bytesArrayToKeyString(bytesArray) {
-        let res = '';
-        const buf = new Uint8Array(bytesArray);
-        buf.forEach(function(octet) {
-            res += String.fromCharCode(octet)
-        });
-        return btoa(res);
+        return Buffer.from(bytesArray).toString('base64');
     }
 
     async exportPemKey(key) {
@@ -75,7 +59,7 @@ class PushApiModel {
     }
 
     async importVapidKey(keyString) {
-        const bytes = this.stringToBytesArray(keyString);
+        const bytes = this.base64UrlDecode(keyString);
         const { subtle } = require('crypto').webcrypto;
 
         try {
@@ -144,7 +128,7 @@ class PushApiModel {
     async createSubscription(options) {
         const { randomBytes } = require('crypto');
         const uniqueClientHash = randomBytes(32).toString('hex');
-        const uniqueAuthKey = this.bytesArrayToKeyString(randomBytes(16));
+        const uniqueAuthKey = this.base64UrlEncode(randomBytes(16));
         return this.generateSubscriptionEcdh()
             .then((subscriptionDh) => {
                 let subscriptionData = {
