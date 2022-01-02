@@ -90,7 +90,7 @@ class PushApiModel {
                 []
             );
         } catch (err) {
-            console.error(err);
+            return undefined;
         }
     }
 
@@ -186,12 +186,12 @@ class PushApiModel {
             throw new Error('Unsupported encoding');
         }
 
-        if (!headers.hasOwnProperty('ttl') || headers.ttl === '') {
+        if (!headers.hasOwnProperty('ttl') || isNaN(parseInt(headers.ttl, 10))) {
             throw new Error('TTL header is invalid: ' + headers.ttl);
         }
 
         if (!headers.hasOwnProperty('authorization') || headers.authorization === '') {
-            throw new RangeError('Missing authorization header');
+            throw new RangeError('Missing or invalid authorization header');
         }
     }
 

@@ -97,7 +97,7 @@ class WebPushTestingServer {
                 cryptoKey: req.get('Crypto-Key'),
                 authorization: req.get('Authorization'),
                 ttl: req.get('TTL'),
-            }
+            };
             return apiModel.handleNotification(
                 clientHash,
                 pushHeaders,
