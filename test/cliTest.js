@@ -294,4 +294,50 @@ describe('CLI Tests', function() {
             endLogging();
         });
     });
+
+    it('should fail to start if port is already used', function() {
+        const http = require('http');
+        const testPort = 8999;
+        const server = http.createServer((req, res) => {
+            res.statusCode = 200;
+            res.end();
+        });
+        server.listen(testPort);
+
+        const isServerRunning = (resolve) => {
+            if (server.listening) {
+                resolve();
+            } else {
+                setTimeout(() => {}, 200);
+                isServerRunning(resolve);
+            }
+        };
+
+        return new Promise(isServerRunning)
+            .then(() => {
+                return new Promise((resolve) => {
+                    process.exit = (code) => {
+                        testExitCode = code;
+                        resolve();
+                    };
+
+                    setArgv(['--port=' + testPort, 'start']);
+                    startLogging();
+                    new testingCli();
+                })
+            })
+            .then(() => {
+                return new Promise((resolve) => {
+                    setTimeout(resolve, 1000);
+                });
+            })
+            .then(() => {
+                testExitCode.should.equal(1);
+                consoleLogs.length.should.greaterThan(0);
+                consoleErrors.length.should.greaterThan(0);
+                consoleErrors[0].should.contain('Failed running testing server');
+                endLogging();
+                server.close();
+            });
+    });
 });

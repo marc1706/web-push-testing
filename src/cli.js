@@ -147,10 +147,13 @@ class WebPushTestingCli
             process.exit(0);
         });
 
-        testingServer.on('error', (err) => {
-            console.error('Failed to start testing server.');
-            console.log(err);
-            process.exit(1);
+        testingServer.on('exit', (code) => {
+            if (code > 0) {
+                console.error('Failed running testing server.');
+                delete processData[this.port];
+                this.storage.setItemSync('processData', processData);
+                process.exit(1);
+            }
         });
     }
 

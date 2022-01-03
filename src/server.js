@@ -40,8 +40,15 @@ class WebPushTestingServer {
             process.exit(1);
         }
 
-        this._app.listen(this._port, () => {
+
+
+        const server = this._app.listen(this._port, () => {
             console.log("Server running on port " + this._port);
+        });
+
+        server.on('error', (err) => {
+            console.log(err);
+            process.exit(1);
         });
 
         this.setRequestHandlers();
