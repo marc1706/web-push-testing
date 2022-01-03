@@ -120,6 +120,16 @@ describe('CLI Tests', function() {
         endLogging();
     });
 
+    it('should show error on more than one command', function() {
+        startLogging();
+        setArgv(['start', 'stop']);
+        new testingCli();
+        testExitCode.should.equal(1);
+        consoleErrors.length.should.greaterThan(0);
+        consoleErrors[0].should.contain('Maximum of one command is supported');
+        endLogging();
+    })
+
     it('should show message on invalid flag', function() {
         startLogging();
         setArgv(['--foo']);
@@ -201,4 +211,87 @@ describe('CLI Tests', function() {
     it('should be able to run server with default values', startStopServerTest());
     it('should be able to run server with -p flag', startStopServerTest(['-p', '8999']));
     it('should be able to run server with --port flag', startStopServerTest(['--port', '8099']));
+
+    it('should fail when trying to start server more than once', function() {
+        let port = 8090;
+
+        return new Promise((resolve) => {
+            process.exit = (code) => {
+                testExitCode = code;
+                resolve();
+            };
+
+            setArgv(['start']);
+
+            new testingCli();
+        })
+        .then(() => {
+            const getStatus = () => {
+                return fetch('http://localhost:' + port + '/status', {
+                    method: 'POST',
+                }).catch(() => {
+                    setTimeout(() => {}, 200);
+                    return getStatus();
+                });
+            }
+
+            return getStatus();
+        })
+        .then((response) => {
+            response.status.should.equal(200);
+
+            return new Promise((resolve) => {
+                testExitCode = -1;
+
+                process.exit = (code) => {
+                    testExitCode = code;
+                    resolve();
+                };
+
+                startLogging();
+                setArgv(['start']);
+                new testingCli();
+            });
+        })
+        .then(() => {
+            testExitCode.should.equal(1);
+            consoleLogs.length.should.greaterThan(0);
+            consoleLogs[0].should.contain('Server seems to already run on port');
+            endLogging();
+
+            return new Promise((resolve) => {
+                testExitCode = -1;
+
+                process.exit = (code) => {
+                    testExitCode = code;
+                    resolve();
+                };
+
+                setArgv(['stop']);
+                new testingCli();
+            });
+        })
+        .then(() => {
+            testExitCode.should.equal(0);
+        });
+    });
+
+    it('should fail when trying to stop unknown server', function() {
+        return new Promise((resolve) => {
+            process.exit = (code) => {
+                testExitCode = code;
+                resolve();
+            };
+
+            setArgv(['stop']);
+            startLogging();
+            new testingCli();
+        })
+        .then(() => {
+            testExitCode.should.equal(1);
+            consoleLogs.length.should.greaterThan(0);
+            consoleLogs[0].should.contain('Server does not seem to run');
+            endLogging();
+        });
+    });
 });

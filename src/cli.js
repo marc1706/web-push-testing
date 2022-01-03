@@ -98,6 +98,7 @@ class WebPushTestingCli
             for (const command of cliArgs._) {
                 console.error('    ' + command);
             }
+            process.exit(1);
             return;
         }
 
@@ -128,6 +129,7 @@ class WebPushTestingCli
             console.log('Server seems to already run on port ' + this.port);
             console.log('Stop server first before starting it on the same port.');
             process.exit(1);
+            return;
         }
 
         console.log('Starting server on port ' + this.port);
@@ -159,7 +161,8 @@ class WebPushTestingCli
 
         if (!processData.hasOwnProperty(port)) {
             console.log('Server does not seem to run on port ' + port);
-            process.exit(0);
+            process.exit(1);
+            return;
         }
 
         const ps = require('ps-node');
