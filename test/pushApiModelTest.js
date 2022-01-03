@@ -178,6 +178,7 @@ describe('Push API Model tests', function() {
         const input = [
             {
                 description: 'Valid headers with aesgcm',
+                subscription: {applicationServerKey: 'foobar'},
                 headers: {
                     encoding: 'aesgcm',
                     ttl: '3600',
@@ -186,6 +187,7 @@ describe('Push API Model tests', function() {
             },
             {
                 description: 'Valid headers with aes128gcm',
+                subscription: {applicationServerKey: 'foobar'},
                 headers: {
                     encoding: 'aes128gcm',
                     ttl: '3600',
@@ -194,6 +196,7 @@ describe('Push API Model tests', function() {
             },
             {
                 description: 'Missing TTL',
+                subscription: {applicationServerKey: 'foobar'},
                 headers: {
                     encoding: 'aes128gcm',
                     authorization: 'placeholder',
@@ -205,6 +208,7 @@ describe('Push API Model tests', function() {
             },
             {
                 description: 'Empty string TTL',
+                subscription: {applicationServerKey: 'foobar'},
                 headers: {
                     encoding: 'aes128gcm',
                     ttl: '',
@@ -217,6 +221,7 @@ describe('Push API Model tests', function() {
             },
             {
                 description: 'NaN TTL',
+                subscription: {applicationServerKey: 'foobar'},
                 headers: {
                     encoding: 'aes128gcm',
                     ttl: 'oops',
@@ -229,6 +234,7 @@ describe('Push API Model tests', function() {
             },
             {
                 description: 'Missing authorization',
+                subscription: {applicationServerKey: 'foobar'},
                 headers: {
                     encoding: 'aes128gcm',
                     ttl: '3600',
@@ -240,6 +246,7 @@ describe('Push API Model tests', function() {
             },
             {
                 description: 'Invalid authorization',
+                subscription: {applicationServerKey: 'foobar'},
                 headers: {
                     encoding: 'aes128gcm',
                     ttl: '3600',
@@ -250,13 +257,21 @@ describe('Push API Model tests', function() {
                     match: /Missing or invalid authorization/,
                 }
             },
+            {
+                description: 'Not using vapid -> authorization not used',
+                subscription: {},
+                headers: {
+                    encoding: 'aes128gcm',
+                    ttl: '3600',
+                },
+            },
         ];
 
-        input.forEach(({description, headers, expectedError}) => {
+        input.forEach(({description, subscription, headers, expectedError}) => {
             it(description, () => {
                 const model = new pushApiModel();
                 try {
-                    model.validateNotificationHeaders(headers);
+                    model.validateNotificationHeaders(subscription, headers);
                     assert.isUndefined(expectedError, 'validateNotificationHeaders did not fail even though error is expected');
                 } catch (err) {
                     assert.isTrue(typeof expectedError !== 'undefined', 'expectedError is not defined but exception is thrown');
@@ -295,6 +310,7 @@ describe('Push API Model tests', function() {
                 'aesgcm',
             );
 
+            // Create WebPush Authorization header
             const pushHeaders = {
                 encoding: 'aesgcm',
                 encryption: 'salt=' + salt,
@@ -303,7 +319,41 @@ describe('Push API Model tests', function() {
                 ttl: 60,
             };
 
-            const requestBody = model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o');
+            const requestBody = model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o')
+
+            await model.handleNotification(testClientHash, pushHeaders, requestBody);
+
+            assert.hasAllKeys(model.messages, [testClientHash]);
+            model.messages[testClientHash].length.should.equal(1);
+            model.messages[testClientHash][0].should.equal('hello');
+        });
+
+        it('Successful notification with aesgcm encryption type w/out VAPID headers', async () => {
+            const model = new pushApiModel();
+            const testClientHash = 'testClientHash';
+            const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
+            const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
+
+            const ecdh = crypto.createECDH('prime256v1');
+            ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
+            model.subscriptions[testClientHash] = {
+                applicationServerKey: undefined,
+                publicKey: subscriptionPublicKey,
+                subscriptionDh: ecdh,
+                auth: 'kZTCk82psaREuK7YOM5mHA'
+            };
+            const salt = '8PYlFauOPQaDkW9QKINEjg';
+            const testLocalPublickey = 'BP_jupWySFrZB4vAqGmEJ9ZLlfLpg1fnP0SgBLmkx_e4sWe3b719Q_oh8FXe2nnTER0rmCJvUd6xmVNzUXMoLJQ';
+
+            // Create WebPush Authorization header
+            const pushHeaders = {
+                encoding: 'aesgcm',
+                encryption: 'salt=' + salt,
+                cryptoKey: 'dh=' + testLocalPublickey,
+                ttl: 60,
+            };
+
+            const requestBody = model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o')
 
             await model.handleNotification(testClientHash, pushHeaders, requestBody);
 
@@ -346,10 +396,43 @@ describe('Push API Model tests', function() {
             const requestBody = model.base64UrlDecode('GaEPNjGhZ6YHIpzPgcSTuAAAEABBBNfCvIUmOmJPCM9E8HKQXr2n44RBECF61EiYV9kPlGeTxKwyCuZSl6-UZMWQHN-IFyu1-tytGic-TodexXcy8nOq8ovjJzeLwjQ0taWXJsNYOD8RbQ1p');
 
             await model.handleNotification(testClientHash, pushHeaders, requestBody);
+            await model.handleNotification(testClientHash, pushHeaders, requestBody);
 
             assert.hasAllKeys(model.messages, [testClientHash]);
-            model.messages[testClientHash].length.should.equal(1);
+            model.messages[testClientHash].length.should.equal(2);
             model.messages[testClientHash][0].should.equal('hello');
+            model.messages[testClientHash][1].should.equal('hello');
+        });
+
+        it('Successful notification with aes128gcm encryption type w/out VAPID headers', async () => {
+            const model = new pushApiModel();
+            const testClientHash = 'testClientHash';
+            const subscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
+            const subscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
+
+            const ecdh = crypto.createECDH('prime256v1');
+            ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
+            model.subscriptions[testClientHash] = {
+                applicationServerKey: undefined,
+                publicKey: subscriptionPublicKey,
+                subscriptionDh: ecdh,
+                auth: 'PST6Fru-E4BwgZ-WfuoLEA'
+            };
+
+            const pushHeaders = {
+                encoding: 'aes128gcm',
+                ttl: 60,
+            };
+
+            const requestBody = model.base64UrlDecode('GaEPNjGhZ6YHIpzPgcSTuAAAEABBBNfCvIUmOmJPCM9E8HKQXr2n44RBECF61EiYV9kPlGeTxKwyCuZSl6-UZMWQHN-IFyu1-tytGic-TodexXcy8nOq8ovjJzeLwjQ0taWXJsNYOD8RbQ1p');
+
+            await model.handleNotification(testClientHash, pushHeaders, requestBody);
+            await model.handleNotification(testClientHash, pushHeaders, requestBody);
+
+            assert.hasAllKeys(model.messages, [testClientHash]);
+            model.messages[testClientHash].length.should.equal(2);
+            model.messages[testClientHash][0].should.equal('hello');
+            model.messages[testClientHash][1].should.equal('hello');
         });
     });
 });

@@ -165,7 +165,7 @@ class PushApiModel {
         }
     }
 
-    validateNotificationHeaders(headers) {
+    validateNotificationHeaders(subscription, headers) {
         if (!headers.hasOwnProperty('encoding') || (headers.encoding !== 'aesgcm' && headers.encoding !== 'aes128gcm')) {
             throw new Error('Unsupported encoding');
         }
@@ -174,7 +174,8 @@ class PushApiModel {
             throw new Error('TTL header is invalid: ' + headers.ttl);
         }
 
-        if (!headers.hasOwnProperty('authorization') || headers.authorization === '') {
+        if (typeof subscription.applicationServerKey !== 'undefined'
+            && (!headers.hasOwnProperty('authorization') || headers.authorization === '')) {
             throw new RangeError('Missing or invalid authorization header');
         }
     }
@@ -197,30 +198,35 @@ class PushApiModel {
             throw new RangeError('Client not subscribed');
         }
         const currentSubscription = this.subscriptions[clientHash];
+        const isVapid = typeof currentSubscription.applicationServerKey !== 'undefined';
 
-        this.validateNotificationHeaders(pushHeaders);
+        this.validateNotificationHeaders(currentSubscription, pushHeaders);
 
         let eceParameters = {
             version: pushHeaders.encoding,
         };
 
         if (pushHeaders.encoding === 'aesgcm') {
-            const [type, jwt] = pushHeaders.authorization.split(' ');
-            if (type !== 'WebPush' || typeof jwt === 'undefined') {
-                throw new Error('Invalid Authorization header sent');
+            if (isVapid) {
+                const [type, jwt] = pushHeaders.authorization.split(' ');
+                if (type !== 'WebPush' || typeof jwt === 'undefined') {
+                    throw new Error('Invalid Authorization header sent');
+                }
+                await this.validateAuthorizationHeader(clientHash, jwt);
             }
-            await this.validateAuthorizationHeader(clientHash, jwt);
 
             let [dhType, notificationDh, ecdsaType, notificationEcdsa] = pushHeaders.cryptoKey.split(/[;=]/);
             const notificationDhBytes = this.base64UrlDecode(notificationDh);
             if (dhType !== 'dh' || this.base64UrlDecode(notificationDh).length !== 65  || notificationDhBytes[0] !== 4) {
                 throw new Error('Invalid Crypto-Key header sent');
             }
-            this.validateCrypto(ecdsaType, notificationEcdsa, currentSubscription.applicationServerKey);
+            if (isVapid) {
+                this.validateCrypto(ecdsaType, notificationEcdsa, currentSubscription.applicationServerKey);
+            }
 
             eceParameters.dh = notificationDhBytes;
             eceParameters.salt = pushHeaders.encryption.substr('salt='.length);
-        } else if (pushHeaders.authorization.substr(0, 'key='.length) !== 'key=') {
+        } else if (isVapid && pushHeaders.encoding === 'aes128gcm') {
             let [vapidHeaderString, notificationApplicationServerKey] = pushHeaders.authorization.split(',');
             notificationApplicationServerKey = notificationApplicationServerKey.trim();
             if (vapidHeaderString.substr(0, 'vapid t='.length) !== 'vapid t='
