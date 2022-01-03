@@ -267,7 +267,6 @@ describe('Push API Model tests', function() {
         });
     });
 
-    /*
     describe('Handle notifications', function() {
 
         it('Successful notification with aesgcm encryption type', async () => {
@@ -276,6 +275,7 @@ describe('Push API Model tests', function() {
             const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
             const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
             const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+            const testApplicationServerPrivateKey = 'A8PXqnFU9XeF609Y2CsfFMnFCakCaPkCMrifvj2a3KY';
 
             const ecdh = crypto.createECDH('prime256v1');
             ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
@@ -287,12 +287,19 @@ describe('Push API Model tests', function() {
             };
             const salt = '8PYlFauOPQaDkW9QKINEjg';
             const testLocalPublickey = 'BP_jupWySFrZB4vAqGmEJ9ZLlfLpg1fnP0SgBLmkx_e4sWe3b719Q_oh8FXe2nnTER0rmCJvUd6xmVNzUXMoLJQ';
+            const vapidHeaders = webPush.getVapidHeaders(
+                'http://localhost',
+                'http://test.com',
+                testApplicationServerKey,
+                testApplicationServerPrivateKey,
+                'aesgcm',
+            );
 
             const pushHeaders = {
                 encoding: 'aesgcm',
                 encryption: 'salt=' + salt,
-                cryptoKey: 'dh=' + testLocalPublickey + ';p256ecdsa=' + testApplicationServerKey,
-                authorization: 'WebPush eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJhdWQiOiJodHRwOi8vbG9jYWxob3N0IiwiZXhwIjoxNjQxMTk1MTkyLCJzdWIiOiJodHRwOi8vdGVzdC5jb20ifQ.s7WG30sx5GFtufk2VMV7V_q92p5E85a-cQQq63qqQBBxFBTllZio9MgN4hteTUnCn_gmKN3WQ4b4ZolEramaOw',
+                cryptoKey: 'dh=' + testLocalPublickey + ';' + vapidHeaders["Crypto-Key"],
+                authorization: vapidHeaders.Authorization,
                 ttl: 60,
             };
 
@@ -311,6 +318,7 @@ describe('Push API Model tests', function() {
             const subscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
             const subscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
             const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+            const testApplicationServerPrivateKey = 'A8PXqnFU9XeF609Y2CsfFMnFCakCaPkCMrifvj2a3KY';
 
             const ecdh = crypto.createECDH('prime256v1');
             ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
@@ -321,9 +329,17 @@ describe('Push API Model tests', function() {
                 auth: 'PST6Fru-E4BwgZ-WfuoLEA'
             };
 
+            const vapidHeaders = webPush.getVapidHeaders(
+                'http://localhost',
+                'http://test.com',
+                testApplicationServerKey,
+                testApplicationServerPrivateKey,
+                'aes128gcm',
+            );
+
             const pushHeaders = {
                 encoding: 'aes128gcm',
-                authorization: 'vapid t=eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJhdWQiOiJodHRwOi8vbG9jYWxob3N0IiwiZXhwIjoxNjQxMTk2MTEzLCJzdWIiOiJodHRwOi8vdGVzdC5jb20ifQ.G4fSpPN7b9HZN_2-HYTVoW2HHz62Rs_qgDmNSEovOKZ-4JNyobiqh-NyBbXuMdVukJUqqnPinilpaTo9IgDixQ, k=BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c',
+                authorization: vapidHeaders.Authorization,
                 ttl: 60,
             };
 
@@ -336,5 +352,4 @@ describe('Push API Model tests', function() {
             model.messages[testClientHash][0].should.equal('hello');
         });
     });
-     */
 });
