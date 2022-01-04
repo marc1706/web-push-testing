@@ -93,7 +93,17 @@ describe('CLI Tests', function() {
                 endLogging();
             })
         })
-    })
+    });
+
+    it('should throw error when passing invalid data to flags', function() {
+        startLogging();
+        setArgv(['-p=wrong', 'start']);
+        new testingCli();
+        testExitCode.should.equal(1);
+        consoleErrors.length.should.greaterThan(1);
+        consoleErrors[0].should.contain('Invalid or unexpected input');
+        endLogging();
+    });
 
     describe('should be able to get version from cli with version flags', function() {
         ['-v', '--version'].forEach((versionFlag) => {

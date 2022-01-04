@@ -41,7 +41,9 @@ class WebPushTestingCli
                 console.error(err.message);
                 process.exit(1);
             } else {
-                throw err;
+                console.error('Invalid or unexpected input:');
+                console.error(err.message);
+                process.exit(1);
             }
         }
     }

@@ -228,7 +228,7 @@ class PushApiModel {
             eceParameters.salt = pushHeaders.encryption.substr('salt='.length);
         } else if (isVapid && pushHeaders.encoding === 'aes128gcm') {
             let [vapidHeaderString, notificationApplicationServerKey] = pushHeaders.authorization.split(',');
-            notificationApplicationServerKey = notificationApplicationServerKey.trim();
+            notificationApplicationServerKey = notificationApplicationServerKey ? notificationApplicationServerKey.trim() : '';
             if (vapidHeaderString.substr(0, 'vapid t='.length) !== 'vapid t='
                 || notificationApplicationServerKey.substr(0, 'k='.length) !== 'k=') {
                 throw new Error('Invalid Authorization header sent');

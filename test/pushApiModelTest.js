@@ -10,8 +10,7 @@
  */
 
 const pushApiModel = require('../src/pushApiModel');
-require('chai').should();
-const assert = require('chai').assert;
+const { assert, should } = require('chai');
 const webPush = require('web-push');
 const crypto = require("crypto");
 const vapidKeys = webPush.generateVAPIDKeys();
@@ -217,6 +216,31 @@ describe('Push API Model tests', function() {
                 expectedError: {
                     type: Error,
                     match: /TTL header is invalid/,
+                }
+            },
+            {
+                description: 'Missing encoding',
+                subscription: {applicationServerKey: 'foobar'},
+                headers: {
+                    ttl: '3600',
+                    authorization: 'placeholder',
+                },
+                expectedError: {
+                    type: Error,
+                    match: /Unsupported encoding/,
+                }
+            },
+            {
+                description: 'Unsupported encoding',
+                subscription: {applicationServerKey: 'foobar'},
+                headers: {
+                    encoding: 'rsa4096',
+                    ttl: '3600',
+                    authorization: 'placeholder',
+                },
+                expectedError: {
+                    type: Error,
+                    match: /Unsupported encoding/,
                 }
             },
             {
@@ -433,6 +457,211 @@ describe('Push API Model tests', function() {
             model.messages[testClientHash].length.should.equal(2);
             model.messages[testClientHash][0].should.equal('hello');
             model.messages[testClientHash][1].should.equal('hello');
+        });
+    });
+
+    it('should throw error on invalid authorization header', async function() {
+        const model = new pushApiModel();
+        const subscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
+        const subscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
+        const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+
+        const ecdh = crypto.createECDH('prime256v1');
+        ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
+        const testClientHash = 'testClientHash';
+        model.subscriptions[testClientHash] = {
+            applicationServerKey: testApplicationServerKey,
+            publicKey: subscriptionPublicKey,
+            subscriptionDh: ecdh,
+            auth: 'PST6Fru-E4BwgZ-WfuoLEA'
+        };
+
+        const expiredAuth = 'vapid t=eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJhdWQiOiJodHRwOi8vbG9jYWxob3N0IiwiZXhwIjoxNjQxMTk2MTEzLCJzdWIiOiJodHRwOi8vdGVzdC5jb20ifQ.G4fSpPN7b9HZN_2-HYTVoW2HHz62Rs_qgDmNSEovOKZ-4JNyobiqh-NyBbXuMdVukJUqqnPinilpaTo9IgDixQ, k=BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+        try {
+            await model.validateAuthorizationHeader(testClientHash, expiredAuth);
+            assert.fail('Expected exception not thrown');
+        } catch (err) {
+            assert.instanceOf(err, RangeError);
+            assert.equal(err.message, 'Invalid authentication token supplied');
+        }
+    });
+
+    it('should throw range error if client is not subscribed', async function() {
+        const model = new pushApiModel();
+
+        try {
+            await model.handleNotification('testClientHash', {}, 'does not matter');
+            assert.fail('Did not throw RangeError even though client is not subscribed');
+        } catch (err) {
+            assert.instanceOf(err, RangeError);
+            assert.equal(err.message, 'Client not subscribed');
+        }
+    });
+
+    describe('Validate crypto', function() {
+        const input = [
+            {
+                description: 'Invalid type',
+                type: 'wrong',
+                publicServerKey: 'foobar',
+                savedPublicKey: 'foobar',
+                expectedError: true,
+            },
+            {
+                description: 'Mismatching keys',
+                type: 'p256ecdsa',
+                publicServerKey: 'foobar',
+                savedPublicKey: 'barfoo',
+                expectedError: true,
+            },
+            {
+                description: 'Correct key type & matching keys',
+                type: 'p256ecdsa',
+                publicServerKey: 'foobar',
+                savedPublicKey: 'foobar',
+                expectedError: false,
+            },
+        ];
+
+        input.forEach(({description, type, publicServerKey, savedPublicKey, expectedError}) => {
+            it(description, () => {
+                const model = new pushApiModel();
+                try {
+                    model.validateCrypto(type, publicServerKey, savedPublicKey);
+                    if (expectedError) {
+                        assert.fail('Did not throw exception even though one was expected');
+                    }
+                } catch (err) {
+                    if (expectedError) {
+                        assert.instanceOf(err, Error);
+                        assert.equal(err.message, 'Invalid Crypto-Key header sent');
+                    } else {
+                        assert.fail('Threw exception even though none was expected');
+                    }
+                }
+            });
+        });
+    });
+
+    describe('Invalid vapid headers', () => {
+        const input = [
+            {
+                description: 'Invalid authorization header for aesgcm',
+                isVapid: true,
+                headers: {
+                    encoding: 'aesgcm',
+                    encryption: 'salt=SomeRandomText',
+                    cryptoKey: 'dh=AndsomeDhwedontcareabout',
+                    ttl: 60,
+                    authorization: 'Invalid',
+                },
+                expectedError: {
+                    type: Error,
+                    match: 'Invalid Authorization header sent',
+                },
+            },
+            {
+                description: 'Crypto-Key header with invalid dh key',
+                isVapid: false,
+                headers: {
+                    encoding: 'aesgcm',
+                    encryption: 'salt=SomeRandomText',
+                    cryptoKey: 'dh=AndsomeDhwedontcareabout',
+                    ttl: 60,
+                    authorization: 'Invalid',
+                },
+                expectedError: {
+                    type: Error,
+                    match: 'Invalid Crypto-Key header sent',
+                },
+            },
+            {
+                description: 'Crypto-Key header not specifying dh',
+                isVapid: false,
+                headers: {
+                    encoding: 'aesgcm',
+                    encryption: 'salt=SomeRandomText',
+                    cryptoKey: 'meh=AndsomeDhwedontcareabout',
+                    ttl: 60,
+                    authorization: 'Invalid',
+                },
+                expectedError: {
+                    type: Error,
+                    match: 'Invalid Crypto-Key header sent',
+                },
+            },
+            {
+                description: 'Invalid authorization header for aes128gcm; vapid t= & k= part invalid',
+                isVapid: true,
+                headers: {
+                    encoding: 'aes128gcm',
+                    encryption: 'salt=SomeRandomText',
+                    cryptoKey: 'dh=AndsomeDhwedontcareabout',
+                    ttl: 60,
+                    authorization: 'Invalid',
+                },
+                expectedError: {
+                    type: Error,
+                    match: 'Invalid Authorization header sent',
+                },
+            },
+            {
+                description: 'Invalid authorization header for aes128gcm; k= part invalid',
+                isVapid: true,
+                headers: {
+                    encoding: 'aes128gcm',
+                    encryption: 'salt=SomeRandomText',
+                    cryptoKey: 'vapid t=eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJhdWQiOiJodHRwOi8vbG9jYWxob3N0IiwiZXhwIjoxNjQxMTk2MTEzLCJzdWIiOiJodHRwOi8vdGVzdC5jb20ifQ.G4fSpPN7b9HZN_2-HYTVoW2HHz62Rs_qgDmNSEovOKZ-4JNyobiqh-NyBbXuMdVukJUqqnPinilpaTo9IgDixQ, foobar=barfoo',
+                    ttl: 60,
+                    authorization: 'Invalid',
+                },
+                expectedError: {
+                    type: Error,
+                    match: 'Invalid Authorization header sent',
+                },
+            },
+            {
+                description: 'Invalid authorization header for aes128gcm; vapid t= part invalid',
+                isVapid: true,
+                headers: {
+                    encoding: 'aes128gcm',
+                    encryption: 'salt=SomeRandomText',
+                    cryptoKey: 'nopid t=eyJ0eXAiOiJKV1QiLCJhbGciOiJFUzI1NiJ9.eyJhdWQiOiJodHRwOi8vbG9jYWxob3N0IiwiZXhwIjoxNjQxMTk2MTEzLCJzdWIiOiJodHRwOi8vdGVzdC5jb20ifQ.G4fSpPN7b9HZN_2-HYTVoW2HHz62Rs_qgDmNSEovOKZ-4JNyobiqh-NyBbXuMdVukJUqqnPinilpaTo9IgDixQ, k=BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c',
+                    ttl: 60,
+                    authorization: 'Invalid',
+                },
+                expectedError: {
+                    type: Error,
+                    match: 'Invalid Authorization header sent',
+                },
+            },
+        ];
+
+        input.forEach(({description, isVapid, headers, expectedError}) => {
+            it(description, async () => {
+                const model = new pushApiModel();
+                const testClientHash = 'testClientHash';
+                const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
+                const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
+                const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+
+                const ecdh = crypto.createECDH('prime256v1');
+                ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
+                model.subscriptions[testClientHash] = {
+                    applicationServerKey: isVapid ? testApplicationServerKey : undefined,
+                    publicKey: subscriptionPublicKey,
+                    subscriptionDh: ecdh,
+                    auth: 'kZTCk82psaREuK7YOM5mHA'
+                };
+
+                try {
+                    await model.handleNotification(testClientHash, headers, 'fakeBody');
+                    assert.fail('Did not throw exception of type ' + expectedError.type);
+                } catch (err) {
+                    assert.instanceOf(err, expectedError.type);
+                    assert.equal(err.message, expectedError.match);
+                }
+            });
         });
     });
 });
