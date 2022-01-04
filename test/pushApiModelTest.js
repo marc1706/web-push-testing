@@ -10,7 +10,8 @@
  */
 
 const pushApiModel = require('../src/pushApiModel');
-const { assert, should } = require('chai');
+require('chai').should();
+const assert = require('chai').assert;
 const webPush = require('web-push');
 const crypto = require("crypto");
 const vapidKeys = webPush.generateVAPIDKeys();
