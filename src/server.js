@@ -40,13 +40,11 @@ class WebPushTestingServer {
             process.exit(1);
         }
 
-
-
-        const server = this._app.listen(this._port, () => {
+        this._server = this._app.listen(this._port, () => {
             console.log("Server running on port " + this._port);
         });
 
-        server.on('error', (err) => {
+        this._server.on('error', (err) => {
             console.log(err);
             process.exit(1);
         });
@@ -79,47 +77,45 @@ class WebPushTestingServer {
         res.sendStatus(200);
     }
 
-    async subscribe(req, res) {
-        try {
-            const subscriptionOptions = req.body;
-            apiModel.subscribe(subscriptionOptions)
-                .then((subscriptionData) => {
-                    res.status(200).send({data: subscriptionData});
-                })
-        } catch (err) {
-            res.status(400).send({
-                error: {
-                    message: err.message,
-                }
+    subscribe(req, res) {
+        const subscriptionOptions = req.body;
+        apiModel.subscribe(subscriptionOptions)
+            .then((subscriptionData) => {
+                res.status(200).send({data: subscriptionData});
+            })
+            .catch((err) => {
+                res.status(400).send({
+                    error: {
+                        message: err.message,
+                    }
+                });
             });
-        }
     }
 
-    async handleNotification(req, res) {
-        try {
-            const clientHash = req.params['clientHash'];
-            const pushHeaders = {
-                encoding: req.get('X-Content-Encoding'),
-                encryption: req.get('Encryption'),
-                cryptoKey: req.get('Crypto-Key'),
-                authorization: req.get('Authorization'),
-                ttl: req.get('TTL'),
-            };
-            return apiModel.handleNotification(
-                clientHash,
-                pushHeaders,
-                req.body
-            ).then((notificationReturn) => {
-                res.status(201).send(notificationReturn);
-            });
-        } catch (err) {
+    handleNotification(req, res) {
+        const clientHash = req.params['clientHash'];
+        const pushHeaders = {
+            encoding: req.get('X-Content-Encoding'),
+            encryption: req.get('Encryption'),
+            cryptoKey: req.get('Crypto-Key'),
+            authorization: req.get('Authorization'),
+            ttl: req.get('TTL'),
+        };
+        return apiModel.handleNotification(
+            clientHash,
+            pushHeaders,
+            req.body
+        ).then((notificationReturn) => {
+            res.status(201).send(notificationReturn);
+        })
+        .catch((err) => {
             const status = err instanceof RangeError ? 400 : 410;
             res.status(status).send({
                 error: {
                     message: err.message,
                 }
-            })
-        }
+            });
+        });
     }
 }
 
