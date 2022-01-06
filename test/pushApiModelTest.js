@@ -344,7 +344,7 @@ describe('Push API Model tests', function() {
                 ttl: 60,
             };
 
-            const requestBody = model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o')
+            const requestBody = model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o');
 
             await model.handleNotification(testClientHash, pushHeaders, requestBody);
 
