@@ -64,8 +64,7 @@ class WebPushTestingServer {
             const notificationsData = apiModel.getNotifications(req.body)
             res.status(200).send({data: notificationsData});
         } catch (err) {
-            const status = err instanceof RangeError ? 400 : 410;
-            res.status(status).send({
+            res.status(400).send({
                 error: {
                     message: err.message,
                 }
