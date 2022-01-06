@@ -23,6 +23,10 @@ jobs:
           cache: 'npm'
       - run: npm ci
       - run: npm test
+      - name: Run ESLint
+        run: |
+          node_modules/eslint/bin/eslint.js src/*
+          node_modules/eslint/bin/eslint.js test/*
 
   coverage:
     runs-on: ubuntu-latest

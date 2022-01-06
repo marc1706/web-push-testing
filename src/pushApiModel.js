@@ -22,11 +22,8 @@ class PushApiModel {
 	}
 
 	async validateSubscribeOptions(options) {
+		// eslint-disable-next-line guard-for-in
 		for (const parameter in options) {
-			if (!Object.prototype.hasOwnProperty.call(options, parameter)) {
-				continue;
-			}
-
 			const value = options[parameter];
 			if (parameter !== 'userVisibleOnly' && parameter !== 'applicationServerKey') {
 				throw new RangeError('Invalid property ' + parameter.toString() + ' sent.');
