@@ -46,7 +46,9 @@ describe('Push API Model tests', function() {
             it(messages.length + (messages.length !== 1 ? ' messages' : ' message') + ' with valid client hash', function() {
                 const model = new pushApiModel();
                 model.subscriptions['testHash'] = {some: 'data'};
-                model.messages['testHash'] = messages;
+                if (messages.length) {
+                    model.messages['testHash'] = messages;
+                }
                 const data = model.getNotifications({clientHash: 'testHash'});
                 Object.keys(data).length.should.equal(1);
                 data.messages.length.should.equal(messages.length);

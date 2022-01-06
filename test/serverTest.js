@@ -261,20 +261,26 @@ describe('Push Server tests', function() {
         const input = [
             {
                 description: 'Successful notification with aesgcm',
-                sendValidEncoding: true,
+                encoding: 'aesgcm',
+                sendAuthorization: true,
+                expectedStatus: 201,
+            },
+            {
+                description: 'Successful notification with aes128gcm',
+                encoding: 'aes128gcm',
                 sendAuthorization: true,
                 expectedStatus: 201,
             },
             {
                 description: 'Unsuccessful notification with wrong encoding',
-                sendValidEncoding: false,
+                encoding: 'wrong',
                 sendAuthorization: true,
                 expectedStatus: 410,
                 expectedError: 'Unsupported encoding',
             },
             {
                 description: 'Unsuccessful notification with invalid authentication header',
-                sendValidEncoding: true,
+                encoding: 'aesgcm',
                 sendAuthorization: false,
                 expectedStatus: 400,
                 expectedError: 'Missing or invalid authorization header',
@@ -282,49 +288,65 @@ describe('Push Server tests', function() {
         ];
 
 
-        input.forEach(({description, sendValidEncoding, sendAuthorization, expectedStatus, expectedError}) => {
+        input.forEach(({description, encoding, sendAuthorization, expectedStatus, expectedError}) => {
 
             it(description, async () => {
                 const model = new pushApiModel();
-                const testClientHash = 'testClientHash';
-                const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
-                const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
-                const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
-                const testApplicationServerPrivateKey = 'A8PXqnFU9XeF609Y2CsfFMnFCakCaPkCMrifvj2a3KY';
+                const testClientHash = encoding !== 'aesgcm' && encoding !== 'aes128gcm' ? 'aesgcm' : encoding;
+                const aesgcmSubscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
+                const aesgcmSubscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
+                const aes128gcmSubscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
+                const aes128gcmSubscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
+                const applicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+                const applicationServerPrivateKey = 'A8PXqnFU9XeF609Y2CsfFMnFCakCaPkCMrifvj2a3KY';
 
                 const ecdh = crypto.createECDH('prime256v1');
-                ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
-                model.subscriptions[testClientHash] = {
-                    applicationServerKey: testApplicationServerKey,
-                    publicKey: subscriptionPublicKey,
-                    subscriptionDh: ecdh,
-                    auth: 'kZTCk82psaREuK7YOM5mHA'
+                ecdh.setPrivateKey(model.base64UrlDecode(encoding === 'aesgcm' ? aesgcmSubscriptionPrivateKey : aes128gcmSubscriptionPrivateKey));
+                model.subscriptions = {
+                    aesgcm: {
+                        applicationServerKey: applicationServerKey,
+                        publicKey: 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc',
+                        subscriptionDh: ecdh,
+                        auth: 'kZTCk82psaREuK7YOM5mHA'
+                    },
+                    aes128gcm: {
+                        applicationServerKey: applicationServerKey,
+                        publicKey: aes128gcmSubscriptionPublicKey,
+                        subscriptionDh: ecdh,
+                        auth: 'PST6Fru-E4BwgZ-WfuoLEA'
+                    }
                 };
                 const salt = '8PYlFauOPQaDkW9QKINEjg';
                 const testLocalPublickey = 'BP_jupWySFrZB4vAqGmEJ9ZLlfLpg1fnP0SgBLmkx_e4sWe3b719Q_oh8FXe2nnTER0rmCJvUd6xmVNzUXMoLJQ';
                 const vapidHeaders = webPush.getVapidHeaders(
                     'http://localhost',
                     'http://test.com',
-                    testApplicationServerKey,
-                    testApplicationServerPrivateKey,
-                    'aesgcm',
+                    applicationServerKey,
+                    applicationServerPrivateKey,
+                    testClientHash,
                 );
 
                 // Create WebPush Authorization header
                 const pushHeaders = {
-                    "Encryption": 'salt=' + salt,
-                    "Crypto-Key": 'dh=' + testLocalPublickey + ';' + vapidHeaders["Crypto-Key"],
                     "Authorization": sendAuthorization ? vapidHeaders.Authorization : '',
                     "TTL": 60,
                     "Content-Type": 'application/octet-stream',
                 };
-                if (sendValidEncoding) {
-                    pushHeaders['Content-Encoding'] = 'aesgcm';
-                } else {
-                    pushHeaders['X-Content-Encoding'] = 'invalid';
+
+                if (encoding !== 'aes128gcm') {
+                    pushHeaders['Encryption'] = 'salt=' + salt;
+                    pushHeaders['Crypto-Key'] = 'dh=' + testLocalPublickey + ';' + vapidHeaders["Crypto-Key"];
                 }
 
-                const requestBody = model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o');
+                if (encoding === 'aesgcm' || encoding === 'aes128gcm') {
+                    pushHeaders['Content-Encoding'] = encoding;
+                } else {
+                    pushHeaders['X-Content-Encoding'] = encoding;
+                }
+
+                const requestBody = encoding === 'aes128gcm'
+                    ? model.base64UrlDecode('GaEPNjGhZ6YHIpzPgcSTuAAAEABBBNfCvIUmOmJPCM9E8HKQXr2n44RBECF61EiYV9kPlGeTxKwyCuZSl6-UZMWQHN-IFyu1-tytGic-TodexXcy8nOq8ovjJzeLwjQ0taWXJsNYOD8RbQ1p')
+                    : model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o');
 
                 const port = 8990;
 
