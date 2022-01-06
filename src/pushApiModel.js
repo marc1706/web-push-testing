@@ -23,7 +23,7 @@ class PushApiModel {
 
 	async validateSubscribeOptions(options) {
 		for (const parameter in options) {
-			if (Object.prototype.hasOwnProperty.call(options, parameter)) {
+			if (!Object.prototype.hasOwnProperty.call(options, parameter)) {
 				continue;
 			}
 

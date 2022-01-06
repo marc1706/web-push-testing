@@ -9,7 +9,7 @@
  *
  */
 
-const pushApiModel = require('../src/pushApiModel');
+const PushApiModel = require('../src/pushApiModel');
 require('chai').should();
 const {assert} = require('chai');
 const webPush = require('web-push');
@@ -26,7 +26,7 @@ describe('Push API Model tests', () => {
 
 		input.forEach(curInput => {
 			it('Error when trying to get notification with ' + curInput.name, () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				assert.throws(
 					() => model.getNotifications(curInput.body),
 					RangeError,
@@ -43,8 +43,8 @@ describe('Push API Model tests', () => {
 		];
 
 		input.forEach(messages => {
-			it(messages.length + (messages.length !== 1 ? ' messages' : ' message') + ' with valid client hash', () => {
-				const model = new pushApiModel();
+			it(messages.length + (messages.length === 1 ? ' message' : ' messages') + ' with valid client hash', () => {
+				const model = new PushApiModel();
 				model.subscriptions.testHash = {some: 'data'};
 				if (messages.length) {
 					model.messages.testHash = messages;
@@ -106,7 +106,7 @@ describe('Push API Model tests', () => {
 
 		input.forEach(({description, options, expectedError}) => {
 			it(description, async () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				await model.validateSubscribeOptions(options)
 					.then(() => {
 						assert.isUndefined(expectedError, 'validateSubscribeOptions did not fail even though error is expected');
@@ -159,7 +159,7 @@ describe('Push API Model tests', () => {
 
 		input.forEach(({description, options, expectedReturn, expectedError}) => {
 			it(description, async () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				model.notifyUrl = 'https://localhost:12345';
 				const subscribeReturn = await model.subscribe(options)
 					.catch(err => {
@@ -297,7 +297,7 @@ describe('Push API Model tests', () => {
 
 		input.forEach(({description, subscription, headers, expectedError}) => {
 			it(description, () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				try {
 					model.validateNotificationHeaders(subscription, headers);
 					assert.isUndefined(expectedError, 'validateNotificationHeaders did not fail even though error is expected');
@@ -312,7 +312,7 @@ describe('Push API Model tests', () => {
 
 	describe('Handle notifications', () => {
 		it('Successful notification with aesgcm encryption type', async () => {
-			const model = new pushApiModel();
+			const model = new PushApiModel();
 			const testClientHash = 'testClientHash';
 			const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
 			const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
@@ -356,7 +356,7 @@ describe('Push API Model tests', () => {
 		});
 
 		it('Successful notification with aesgcm encryption type w/out VAPID headers', async () => {
-			const model = new pushApiModel();
+			const model = new PushApiModel();
 			const testClientHash = 'testClientHash';
 			const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
 			const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
@@ -390,7 +390,7 @@ describe('Push API Model tests', () => {
 		});
 
 		it('Successful notification with aes128gcm encryption type', async () => {
-			const model = new pushApiModel();
+			const model = new PushApiModel();
 			const testClientHash = 'testClientHash';
 			const subscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
 			const subscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
@@ -432,7 +432,7 @@ describe('Push API Model tests', () => {
 		});
 
 		it('Successful notification with aes128gcm encryption type w/out VAPID headers', async () => {
-			const model = new pushApiModel();
+			const model = new PushApiModel();
 			const testClientHash = 'testClientHash';
 			const subscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
 			const subscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
@@ -464,7 +464,7 @@ describe('Push API Model tests', () => {
 	});
 
 	it('should throw error on invalid authorization header', async () => {
-		const model = new pushApiModel();
+		const model = new PushApiModel();
 		const subscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
 		const subscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
 		const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
@@ -490,7 +490,7 @@ describe('Push API Model tests', () => {
 	});
 
 	it('should throw range error if client is not subscribed', async () => {
-		const model = new pushApiModel();
+		const model = new PushApiModel();
 
 		try {
 			await model.handleNotification('testClientHash', {}, 'does not matter');
@@ -528,7 +528,7 @@ describe('Push API Model tests', () => {
 
 		input.forEach(({description, type, publicServerKey, savedPublicKey, expectedError}) => {
 			it(description, () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				try {
 					model.validateCrypto(type, publicServerKey, savedPublicKey);
 					if (expectedError) {
@@ -642,7 +642,7 @@ describe('Push API Model tests', () => {
 
 		input.forEach(({description, isVapid, headers, expectedError}) => {
 			it(description, async () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				const testClientHash = 'testClientHash';
 				const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
 				const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';

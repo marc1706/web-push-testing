@@ -12,5 +12,4 @@
  */
 
 const TestingCli = require('../cli.js');
-// eslint-disable-next-line no-new
 new TestingCli();

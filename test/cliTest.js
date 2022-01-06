@@ -9,13 +9,14 @@
  *
  */
 
-const testingCli = require('../src/cli.js');
-const fs = require("fs");
-const path = require("path");
+const WebPushTestingCli = require('../src/cli.js');
+const fs = require('fs');
+const path = require('path');
 const fetch = require('node-fetch');
+const {assert} = require('chai');
 require('chai').should();
 
-describe('CLI Tests', function () {
+describe('CLI Tests', () => {
 	const originalExit = process.exit;
 	const originalLog = console.log;
 	const originalError = console.error;
@@ -25,151 +26,156 @@ describe('CLI Tests', function () {
 	let consoleLogs = [];
 	let consoleErrors = [];
 
-	before(function () {
-		process.exit = (code) => {
+	before(() => {
+		process.exit = code => {
 			testExitCode = code;
 		};
+
 		process.argv = [];
 	});
 
-	after(function () {
+	after(() => {
 		process.exit = originalExit;
 		process.argv = originalArgv;
 	});
 
-	beforeEach(function () {
+	beforeEach(() => {
 		consoleLogs = [];
 		testExitCode = -1;
 		process.argv = [];
 	});
 
-	let startLogging = () => {
-		console.log = (string) => {
+	const startLogging = () => {
+		console.log = string => {
 			consoleLogs.push(string);
 		};
-		console.error = (string) => {
+
+		console.error = string => {
 			consoleErrors.push(string);
-		}
+		};
 	};
 
-	let endLogging = () => {
+	const endLogging = () => {
 		consoleLogs = [];
 		consoleErrors = [];
 		console.log = originalLog;
 		console.error = originalError;
 	};
 
-	/**
-	 *
-	 * @param {string[]} arguments
-	 */
-	let setArgv = (arguments) => {
+	const setArgv = args => {
 		process.argv = [
 			'/usr/bin/node',
 			__filename,
 		];
 
-		arguments.forEach((argument) => {
-			process.argv.push(argument);
-		})
+		args.forEach(arg => {
+			process.argv.push(arg);
+		});
 	};
 
-	it('should be able to require the cli from package.json', function () {
+	it('should be able to require the cli from package.json', () => {
 		const binValues = require('../package.json').bin;
 		const cliPath = binValues['web-push-testing'];
 		fs.accessSync(path.join(__dirname, '..', cliPath), fs.F_OK);
 	});
 
-	describe('should be able to get help text from cli with help flags', function () {
-		['-h', '--help'].forEach((helpFlag) => {
-			it(helpFlag + ' flag', function () {
+	describe('should be able to get help text from cli with help flags', () => {
+		['-h', '--help'].forEach(helpFlag => {
+			it(helpFlag + ' flag', () => {
 				startLogging();
 				setArgv([helpFlag]);
-				new testingCli();
+
+				new WebPushTestingCli();
 				testExitCode.should.equal(0);
 				consoleLogs.length.should.greaterThan(10);
 				consoleLogs[0].should.equal('web-push-testing');
 				consoleLogs[2].should.equal('Usage:');
 				endLogging();
-			})
-		})
+			});
+		});
 	});
 
-	describe('should be able to get help text from cli with help flags via src/bin/cli.js', function () {
-		['-h', '--help'].forEach((helpFlag) => {
-			it(helpFlag + ' flag', function () {
-				const {spawnSync} = require("child_process");
+	describe('should be able to get help text from cli with help flags via src/bin/cli.js', () => {
+		['-h', '--help'].forEach(helpFlag => {
+			it(helpFlag + ' flag', () => {
+				const {spawnSync} = require('child_process');
 				const testingCliOutput = spawnSync('node', [path.join(__dirname, '../src/bin/cli.js'), helpFlag], {});
 				testingCliOutput.status.should.equal(0);
-				let textDecoder = new TextDecoder();
-				consoleLogs = textDecoder.decode(testingCliOutput.stdout).toString().split("\n");
+				const textDecoder = new TextDecoder();
+				consoleLogs = textDecoder.decode(testingCliOutput.stdout).toString().split('\n');
 				consoleLogs.length.should.greaterThan(10);
 				consoleLogs[0].should.equal('web-push-testing');
 				consoleLogs[2].should.equal('Usage:');
 				endLogging();
-			})
-		})
+			});
+		});
 	});
 
-	it('should throw error when passing invalid data to flags', function () {
+	it('should throw error when passing invalid data to flags', () => {
 		startLogging();
 		setArgv(['-p=wrong', 'start']);
-		new testingCli();
+
+		new WebPushTestingCli();
 		testExitCode.should.equal(1);
 		consoleErrors.length.should.greaterThan(1);
 		consoleErrors[0].should.contain('Invalid or unexpected input');
 		endLogging();
 	});
 
-	describe('should be able to get version from cli with version flags', function () {
-		['-v', '--version'].forEach((versionFlag) => {
-			it(versionFlag + ' flag', function () {
+	describe('should be able to get version from cli with version flags', () => {
+		['-v', '--version'].forEach(versionFlag => {
+			it(versionFlag + ' flag', () => {
 				startLogging();
 				setArgv([versionFlag]);
-				new testingCli();
+
+				new WebPushTestingCli();
 				testExitCode.should.equal(0);
 				consoleLogs.length.should.equal(1);
-				const version = require('../package.json').version;
+				const {version} = require('../package.json');
 				consoleLogs[0].should.contain(version);
 				endLogging();
 			});
-		})
+		});
 	});
 
-	it('should show message on invalid command', function () {
+	it('should show message on invalid command', () => {
 		startLogging();
 		setArgv(['random']);
-		new testingCli();
+
+		new WebPushTestingCli();
 		testExitCode.should.equal(1);
 		consoleErrors.length.should.greaterThan(0);
 		consoleErrors[0].should.contain('Invalid command');
 		endLogging();
 	});
 
-	it('should show error on more than one command', function () {
+	it('should show error on more than one command', () => {
 		startLogging();
 		setArgv(['start', 'stop']);
-		new testingCli();
+
+		new WebPushTestingCli();
 		testExitCode.should.equal(1);
 		consoleErrors.length.should.greaterThan(0);
 		consoleErrors[0].should.contain('Maximum of one command is supported');
 		endLogging();
-	})
+	});
 
-	it('should show message on invalid flag', function () {
+	it('should show message on invalid flag', () => {
 		startLogging();
 		setArgv(['--foo']);
-		new testingCli();
+
+		new WebPushTestingCli();
 		testExitCode.should.equal(1);
 		consoleErrors.length.should.greaterThan(0);
 		consoleErrors[0].should.contain('unknown');
 		endLogging();
 	});
 
-	it('should show message on missing command', function () {
+	it('should show message on missing command', () => {
 		startLogging();
 		setArgv(['--port=1234']);
-		new testingCli();
+
+		new WebPushTestingCli();
 		testExitCode.should.equal(1);
 		consoleErrors.length.should.greaterThan(0);
 		consoleErrors[0].should.contain('No command');
@@ -191,42 +197,41 @@ describe('CLI Tests', function () {
 				args = [];
 			}
 
-			return new Promise((resolve) => {
-				process.exit = (code) => {
+			return new Promise(resolve => {
+				process.exit = code => {
 					testExitCode = code;
 					resolve();
 				};
 
 				setArgv(args.concat(['start']));
 
-				new testingCli();
+				new WebPushTestingCli();
 			})
 				.then(() => {
-					const getStatus = () => {
-						return fetch('http://localhost:' + port + '/status', {
-							method: 'POST',
-						}).catch(() => {
-							setTimeout(() => {
-							}, 200);
-							return getStatus();
-						});
-					}
+					const getStatus = () => fetch('http://localhost:' + port + '/status', {
+						method: 'POST',
+					}).catch(() => {
+						setTimeout(() => {
+						}, 200);
+						return getStatus();
+					});
 
 					return getStatus();
 				})
-				.then((response) => {
+				.then(response => {
 					response.status.should.equal(200);
 
-					return new Promise((resolve) => {
+					return new Promise(resolve => {
 						testExitCode = -1;
 
-						process.exit = (code) => {
+						process.exit = code => {
 							testExitCode = code;
 							resolve();
 						};
 
 						setArgv(args.concat(['stop']));
-						new testingCli();
+
+						new WebPushTestingCli();
 					});
 				})
 				.then(() => {
@@ -239,46 +244,45 @@ describe('CLI Tests', function () {
 	it('should be able to run server with -p flag', startStopServerTest(['-p', '8999']));
 	it('should be able to run server with --port flag', startStopServerTest(['--port', '8099']));
 
-	it('should fail when trying to start server more than once', function () {
-		let port = 8090;
+	it('should fail when trying to start server more than once', () => {
+		const port = 8090;
 
-		return new Promise((resolve) => {
-			process.exit = (code) => {
+		return new Promise(resolve => {
+			process.exit = code => {
 				testExitCode = code;
 				resolve();
 			};
 
 			setArgv(['start']);
 
-			new testingCli();
+			new WebPushTestingCli();
 		})
 			.then(() => {
-				const getStatus = () => {
-					return fetch('http://localhost:' + port + '/status', {
-						method: 'POST',
-					}).catch(() => {
-						setTimeout(() => {
-						}, 200);
-						return getStatus();
-					});
-				}
+				const getStatus = () => fetch('http://localhost:' + port + '/status', {
+					method: 'POST',
+				}).catch(() => {
+					setTimeout(() => {
+					}, 200);
+					return getStatus();
+				});
 
 				return getStatus();
 			})
-			.then((response) => {
+			.then(response => {
 				response.status.should.equal(200);
 
-				return new Promise((resolve) => {
+				return new Promise(resolve => {
 					testExitCode = -1;
 
-					process.exit = (code) => {
+					process.exit = code => {
 						testExitCode = code;
 						resolve();
 					};
 
 					startLogging();
 					setArgv(['start']);
-					new testingCli();
+
+					new WebPushTestingCli();
 				});
 			})
 			.then(() => {
@@ -287,16 +291,17 @@ describe('CLI Tests', function () {
 				consoleLogs[0].should.contain('Server seems to already run on port');
 				endLogging();
 
-				return new Promise((resolve) => {
+				return new Promise(resolve => {
 					testExitCode = -1;
 
-					process.exit = (code) => {
+					process.exit = code => {
 						testExitCode = code;
 						resolve();
 					};
 
 					setArgv(['stop']);
-					new testingCli();
+
+					new WebPushTestingCli();
 				});
 			})
 			.then(() => {
@@ -304,36 +309,35 @@ describe('CLI Tests', function () {
 			});
 	});
 
-	it('should fail when trying to stop unknown server', function () {
-		return new Promise((resolve) => {
-			process.exit = (code) => {
-				testExitCode = code;
-				resolve();
-			};
+	it('should fail when trying to stop unknown server', () => new Promise(resolve => {
+		process.exit = code => {
+			testExitCode = code;
+			resolve();
+		};
 
-			setArgv(['stop']);
-			startLogging();
-			new testingCli();
-		})
-			.then(() => {
-				testExitCode.should.equal(1);
-				consoleLogs.length.should.greaterThan(0);
-				consoleLogs[0].should.contain('Server does not seem to run');
-				endLogging();
-			});
-	});
+		setArgv(['stop']);
+		startLogging();
 
-	it('should fail when trying to stop unknown server with non-existing processData', function () {
+		new WebPushTestingCli();
+	})
+		.then(() => {
+			testExitCode.should.equal(1);
+			consoleLogs.length.should.greaterThan(0);
+			consoleLogs[0].should.contain('Server does not seem to run');
+			endLogging();
+		}));
+
+	it('should fail when trying to stop unknown server with non-existing processData', () => {
 		let cli;
-		return new Promise((resolve) => {
-			process.exit = (code) => {
+		return new Promise(resolve => {
+			process.exit = code => {
 				testExitCode = code;
 				resolve();
 			};
 
 			setArgv(['stop']);
 			startLogging();
-			cli = new testingCli();
+			cli = new WebPushTestingCli();
 		})
 			.then(() => {
 				testExitCode.should.equal(1);
@@ -350,13 +354,13 @@ describe('CLI Tests', function () {
 					consoleLogs.length.should.greaterThan(0);
 					consoleLogs[0].should.contain('Server does not seem to run');
 					endLogging();
-				} catch (err) {
+				} catch {
 					assert.fail('Threw unexpected exception');
 				}
 			});
 	});
 
-	it('should fail to start if port is already used', function () {
+	it('should fail to start if port is already used', () => {
 		const http = require('http');
 		const testPort = 8999;
 		const server = http.createServer((req, res) => {
@@ -365,7 +369,7 @@ describe('CLI Tests', function () {
 		});
 		server.listen(testPort);
 
-		const isServerRunning = (resolve) => {
+		const isServerRunning = resolve => {
 			if (server.listening) {
 				resolve();
 			} else {
@@ -376,23 +380,19 @@ describe('CLI Tests', function () {
 		};
 
 		return new Promise(isServerRunning)
-			.then(() => {
-				return new Promise((resolve) => {
-					process.exit = (code) => {
-						testExitCode = code;
-						resolve();
-					};
+			.then(() => new Promise(resolve => {
+				process.exit = code => {
+					testExitCode = code;
+					resolve();
+				};
 
-					setArgv(['--port=' + testPort, 'start']);
-					startLogging();
-					new testingCli();
-				})
-			})
-			.then(() => {
-				return new Promise((resolve) => {
-					setTimeout(resolve, 1000);
-				});
-			})
+				setArgv(['--port=' + testPort, 'start']);
+				startLogging();
+				new WebPushTestingCli();
+			}))
+			.then(() => new Promise(resolve => {
+				setTimeout(resolve, 1000);
+			}))
 			.then(() => {
 				testExitCode.should.equal(1);
 				consoleLogs.length.should.greaterThan(0);

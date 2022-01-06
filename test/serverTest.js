@@ -9,8 +9,8 @@
  *
  */
 
-const testingServer = require('../src/server.js');
-const pushApiModel = require('../src/pushApiModel');
+const WebPushTestingServer = require('../src/server.js');
+const PushApiModel = require('../src/pushApiModel');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 const webPush = require('web-push');
@@ -23,14 +23,11 @@ describe('Push Server tests', () => {
 	const originalError = console.error;
 	const originalArgv = process.argv;
 
-	let testExitCode = -1;
 	let consoleLogs = [];
 	let consoleErrors = [];
 
 	before(() => {
-		process.exit = code => {
-			testExitCode = code;
-		};
+		process.exit = () => {};
 
 		process.argv = [];
 	});
@@ -42,7 +39,6 @@ describe('Push Server tests', () => {
 
 	beforeEach(() => {
 		consoleLogs = [];
-		testExitCode = -1;
 		process.argv = [];
 	});
 
@@ -64,9 +60,9 @@ describe('Push Server tests', () => {
 	};
 
 	it('should be able to start server via constructor', async () => {
-		const model = new pushApiModel();
+		const model = new PushApiModel();
 		const port = 8990;
-		const server = new testingServer(model, port);
+		const server = new WebPushTestingServer(model, port);
 		startLogging();
 		server.startServer();
 
@@ -89,9 +85,9 @@ describe('Push Server tests', () => {
 	});
 
 	it('should throw error on passing invalid port', () => {
-		const model = new pushApiModel();
+		const model = new PushApiModel();
 		const port = 'test';
-		const server = new testingServer(model, port);
+		const server = new WebPushTestingServer(model, port);
 		startLogging();
 		server.startServer();
 		consoleErrors.length.should.equal(1);
@@ -128,13 +124,13 @@ describe('Push Server tests', () => {
 
 		input.forEach(({description, messages, validClientHash, error}) => {
 			it(description, async () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				const testClientHash = 'testHash';
 				model.subscriptions[testClientHash] = {some: 'data'};
 				model.messages[testClientHash] = messages;
 				const port = 8990;
 
-				const server = new testingServer(model, port);
+				const server = new WebPushTestingServer(model, port);
 				startLogging();
 				server.startServer();
 
@@ -145,6 +141,7 @@ describe('Push Server tests', () => {
 					consoleLogs.length.should.equal(1);
 					consoleLogs[0].should.match(/Server running/);
 				})
+					// eslint-disable-next-line no-return-await
 					.then(async () => await fetch('http://localhost:' + port + '/get-notifications', {
 						method: 'POST',
 						body: JSON.stringify({
@@ -197,28 +194,20 @@ describe('Push Server tests', () => {
 				description: 'Invalid application server key',
 				options: {applicationServerKey: 'nope'},
 				success: false,
-				expectedError: {
-					type: Error,
-					match: /Parameter applicationServerKey does not seem to be a valid VAPID key/,
-				},
 			},
 			{
 				description: 'Invalid userVisibleOnly',
 				options: {userVisibleOnly: 'nope', applicationServerKey: 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM'},
 				success: false,
-				expectedError: {
-					type: RangeError,
-					match: /Parameter userVisibleOnly is not of type boolean/,
-				},
 			},
 		];
 
-		input.forEach(({description, options, success, expectedError}) => {
+		input.forEach(({description, options, success}) => {
 			it(description, async () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				const port = 8990;
 
-				const server = new testingServer(model, port);
+				const server = new WebPushTestingServer(model, port);
 				startLogging();
 				server.startServer();
 
@@ -229,6 +218,7 @@ describe('Push Server tests', () => {
 					consoleLogs.length.should.equal(1);
 					consoleLogs[0].should.match(/Server running/);
 				})
+					// eslint-disable-next-line no-return-await
 					.then(async () => await fetch('http://localhost:' + port + '/subscribe', {
 						method: 'POST',
 						body: JSON.stringify(options),
@@ -245,9 +235,6 @@ describe('Push Server tests', () => {
 							assert.hasAllKeys(responseBody.data.keys, ['p256dh', 'auth']);
 							assert.lengthOf(model.base64UrlDecode(responseBody.data.keys.auth), 16); // Auth must be 16 characters
 						}
-					}).catch(() => {
-						endLogging();
-						server._server.close();
 					});
 			});
 		});
@@ -285,9 +272,8 @@ describe('Push Server tests', () => {
 
 		input.forEach(({description, encoding, sendAuthorization, expectedStatus, expectedError}) => {
 			it(description, async () => {
-				const model = new pushApiModel();
+				const model = new PushApiModel();
 				const testClientHash = encoding !== 'aesgcm' && encoding !== 'aes128gcm' ? 'aesgcm' : encoding;
-				const aesgcmSubscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
 				const aesgcmSubscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
 				const aes128gcmSubscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
 				const aes128gcmSubscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
@@ -344,7 +330,7 @@ describe('Push Server tests', () => {
 
 				const port = 8990;
 
-				const server = new testingServer(model, port);
+				const server = new WebPushTestingServer(model, port);
 				startLogging();
 				server.startServer();
 

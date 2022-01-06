@@ -1,7 +1,20 @@
 {
-    "extends": [
-        "xo"
-    ],
-    "rules": {
+  "env": {
+    "node": true,
+    "mocha": true
+  },
+  "extends": [
+    "xo"
+  ],
+  "rules": {
+    "no-new": "off"
+  },
+  "overrides": [
+    {
+      "files": ["test/*","*.spec.js"],
+      "rules": {
+        "max-nested-callbacks": ["warn", 5]
+      }
     }
+  ]
 }
