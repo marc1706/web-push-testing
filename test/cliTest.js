@@ -95,6 +95,22 @@ describe('CLI Tests', function() {
         })
     });
 
+    describe('should be able to get help text from cli with help flags via src/bin/cli.js', function() {
+        ['-h', '--help'].forEach((helpFlag) => {
+            it(helpFlag + ' flag', function() {
+                const { spawnSync } = require("child_process");
+                const testingCliOutput = spawnSync('node', [path.join(__dirname, '../src/bin/cli.js'), helpFlag], {});
+                testingCliOutput.status.should.equal(0);
+                let textDecoder = new TextDecoder();
+                consoleLogs = textDecoder.decode(testingCliOutput.stdout).toString().split("\n");
+                consoleLogs.length.should.greaterThan(10);
+                consoleLogs[0].should.equal('web-push-testing');
+                consoleLogs[2].should.equal('Usage:');
+                endLogging();
+            })
+        })
+    });
+
     it('should throw error when passing invalid data to flags', function() {
         startLogging();
         setArgv(['-p=wrong', 'start']);
