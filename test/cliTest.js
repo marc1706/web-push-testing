@@ -305,6 +305,39 @@ describe('CLI Tests', function() {
         });
     });
 
+    it('should fail when trying to stop unknown server with non-existing processData', function() {
+        let cli;
+        return new Promise((resolve) => {
+            process.exit = (code) => {
+                testExitCode = code;
+                resolve();
+            };
+
+            setArgv(['stop']);
+            startLogging();
+            cli = new testingCli();
+        })
+        .then(() => {
+            testExitCode.should.equal(1);
+            consoleLogs.length.should.greaterThan(0);
+            consoleLogs[0].should.contain('Server does not seem to run');
+            endLogging();
+        })
+        .then(() => {
+            startLogging();
+            cli.storage.removeItemSync('processData');
+            try {
+                cli.stopService();
+                testExitCode.should.equal(1);
+                consoleLogs.length.should.greaterThan(0);
+                consoleLogs[0].should.contain('Server does not seem to run');
+                endLogging();
+            } catch (err) {
+                assert.fail('Threw unexpected exception');
+            }
+        });
+    });
+
     it('should fail to start if port is already used', function() {
         const http = require('http');
         const testPort = 8999;
