@@ -11,11 +11,11 @@
  *
  */
 
-const testingServer = require('../server.js');
+const TestingServer = require('../server.js');
 
 const serverPort = JSON.parse(process.argv[2]);
-const pushApiModel = require('../pushApiModel.js');
-const apiModel = new pushApiModel();
+const PushApiModel = require('../pushApiModel.js');
+const apiModel = new PushApiModel();
 
-const server = new testingServer(apiModel, serverPort);
+const server = new TestingServer(apiModel, serverPort);
 server.startServer();

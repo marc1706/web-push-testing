@@ -23,6 +23,10 @@ class PushApiModel {
 
 	async validateSubscribeOptions(options) {
 		for (const parameter in options) {
+			if (Object.prototype.hasOwnProperty.call(options, parameter)) {
+				continue;
+			}
+
 			const value = options[parameter];
 			if (parameter !== 'userVisibleOnly' && parameter !== 'applicationServerKey') {
 				throw new RangeError('Invalid property ' + parameter.toString() + ' sent.');
@@ -32,6 +36,7 @@ class PushApiModel {
 				throw new RangeError('Parameter userVisibleOnly is not of type boolean: ' + value);
 			}
 
+			// eslint-disable-next-line no-await-in-loop
 			if (parameter === 'applicationServerKey' && (await this.isValidVapidKey(value)) === false) {
 				throw new Error('Parameter applicationServerKey does not seem to be a valid VAPID key.');
 			}
@@ -71,7 +76,7 @@ class PushApiModel {
 				true,
 				[],
 			);
-		} catch (err) {
+		} catch {
 			return undefined;
 		}
 	}
@@ -160,16 +165,16 @@ class PushApiModel {
 	}
 
 	validateNotificationHeaders(subscription, headers) {
-		if (!headers.hasOwnProperty('encoding') || (headers.encoding !== 'aesgcm' && headers.encoding !== 'aes128gcm')) {
+		if (!Object.prototype.hasOwnProperty.call(headers, 'encoding') || (headers.encoding !== 'aesgcm' && headers.encoding !== 'aes128gcm')) {
 			throw new Error('Unsupported encoding');
 		}
 
-		if (!headers.hasOwnProperty('ttl') || isNaN(parseInt(headers.ttl, 10))) {
+		if (!Object.prototype.hasOwnProperty.call(headers, 'ttl') || isNaN(parseInt(headers.ttl, 10))) {
 			throw new Error('TTL header is invalid: ' + headers.ttl);
 		}
 
 		if (typeof subscription.applicationServerKey !== 'undefined'
-            && (!headers.hasOwnProperty('authorization') || headers.authorization === '')) {
+			&& (!Object.prototype.hasOwnProperty.call(headers, 'authorization') || headers.authorization === '')) {
 			throw new RangeError('Missing or invalid authorization header');
 		}
 	}
@@ -188,7 +193,7 @@ class PushApiModel {
 	}
 
 	async handleNotification(clientHash, pushHeaders, body) {
-		if (!this.subscriptions.hasOwnProperty(clientHash)) {
+		if (!Object.prototype.hasOwnProperty.call(this.subscriptions, clientHash)) {
 			throw new RangeError('Client not subscribed');
 		}
 
@@ -227,7 +232,7 @@ class PushApiModel {
 			let [vapidHeaderString, notificationApplicationServerKey] = pushHeaders.authorization.split(',');
 			notificationApplicationServerKey = notificationApplicationServerKey ? notificationApplicationServerKey.trim() : '';
 			if (vapidHeaderString.substr(0, 'vapid t='.length) !== 'vapid t='
-                || notificationApplicationServerKey.substr(0, 'k='.length) !== 'k=') {
+				|| notificationApplicationServerKey.substr(0, 'k='.length) !== 'k=') {
 				throw new Error('Invalid Authorization header sent');
 			}
 
@@ -250,22 +255,23 @@ class PushApiModel {
 
 		const decryptedText = ece.decrypt(body, eceParameters);
 
-		if (!this.messages.hasOwnProperty(clientHash)) {
-			this.messages[clientHash] = [decryptedText.toString('utf-8')];
-		} else {
+		if (Object.prototype.hasOwnProperty.call(this.messages, clientHash)) {
 			this.messages[clientHash].push(decryptedText.toString('utf-8'));
+		} else {
+			this.messages[clientHash] = [decryptedText.toString('utf-8')];
 		}
 	}
 
 	getNotifications(requestBody) {
-		if (!requestBody.hasOwnProperty('clientHash') || !this.subscriptions.hasOwnProperty(requestBody.clientHash)) {
+		if (!Object.prototype.hasOwnProperty.call(requestBody, 'clientHash')
+			|| !Object.prototype.hasOwnProperty.call(this.subscriptions, requestBody.clientHash)) {
 			throw new RangeError('Client not subscribed');
 		}
 
 		const {clientHash} = requestBody;
 
 		return {
-			messages: this.messages.hasOwnProperty(clientHash) ? this.messages[clientHash] : [],
+			messages: Object.prototype.hasOwnProperty.call(this.messages, clientHash) ? this.messages[clientHash] : [],
 		};
 	}
 }

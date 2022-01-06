@@ -48,19 +48,19 @@ class WebPushTestingCli {
 	}
 
 	handleCliArguments(cliArgs) {
-		if (cliArgs.hasOwnProperty('--help')) {
+		if (Object.prototype.hasOwnProperty.call(cliArgs, '--help')) {
 			return this.printHelpText();
 		}
 
-		if (cliArgs.hasOwnProperty('--version')) {
+		if (Object.prototype.hasOwnProperty.call(cliArgs, '--version')) {
 			return this.printVersion();
 		}
 
-		if (cliArgs.hasOwnProperty('--port')) {
+		if (Object.prototype.hasOwnProperty.call(cliArgs, '--port')) {
 			this.port = cliArgs['--port'];
 		}
 
-		if (cliArgs.hasOwnProperty('_') && cliArgs._.length > 0) {
+		if (Object.prototype.hasOwnProperty.call(cliArgs, '_') && cliArgs._.length > 0) {
 			return this.handleCommand(cliArgs);
 		}
 
@@ -127,7 +127,7 @@ class WebPushTestingCli {
 
 	startService() {
 		const processData = this.getProcessData();
-		if (processData.hasOwnProperty(this.port)) {
+		if (Object.prototype.hasOwnProperty.call(processData, this.port)) {
 			console.log('Server seems to already run on port ' + this.port);
 			console.log('Stop server first before starting it on the same port.');
 			process.exit(1);
@@ -164,7 +164,7 @@ class WebPushTestingCli {
 		const {port} = this;
 		const {storage} = this;
 
-		if (!processData.hasOwnProperty(port)) {
+		if (!Object.prototype.hasOwnProperty.call(processData, port)) {
 			console.log('Server does not seem to run on port ' + port);
 			process.exit(1);
 			return;

@@ -24,8 +24,8 @@ class WebPushTestingServer {
 		this._app.use(express.json());
 		// Workaround to allow content-encoding outside bodyParser defaults
 		this._app.use((req, res, next) => {
-			if (req.headers.hasOwnProperty('content-encoding')
-                && (req.headers['content-encoding'] === 'aesgcm' || req.headers['content-encoding'] === 'aes128gcm')) {
+			if (Object.prototype.hasOwnProperty.call(req.headers, 'content-encoding')
+				&& (req.headers['content-encoding'] === 'aesgcm' || req.headers['content-encoding'] === 'aes128gcm')) {
 				req.headers['x-content-encoding'] = req.headers['content-encoding'];
 				delete req.headers['content-encoding'];
 			}
