@@ -247,7 +247,7 @@ describe('Push Server tests', function() {
                         assert.hasAnyKeys(responseBody, ['data']);
                         assert.hasAllKeys(responseBody.data, ['endpoint', 'keys', 'clientHash']); // clientHash added for convenience
                         assert.hasAllKeys(responseBody.data.keys, ['p256dh', 'auth']);
-                        assert.lengthOf(responseBody.data.keys.auth, 16);
+                        assert.lengthOf(model.base64UrlDecode(responseBody.data.keys.auth), 16); // auth must be 16 characters
                     }
                 }).catch(() => {
                     endLogging();
