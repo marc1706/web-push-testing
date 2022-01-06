@@ -10,7 +10,7 @@
  */
 
 const WebPushTestingServer = require('../src/server.js');
-const PushApiModel = require('../src/pushApiModel');
+const PushApiModel = require('../src/PushApiModel');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 const webPush = require('web-push');

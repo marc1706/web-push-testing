@@ -9,7 +9,7 @@
  *
  */
 
-const PushApiModel = require('../src/pushApiModel');
+const PushApiModel = require('../src/PushApiModel');
 require('chai').should();
 const {assert} = require('chai');
 const webPush = require('web-push');
