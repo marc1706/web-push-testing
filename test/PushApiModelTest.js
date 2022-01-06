@@ -489,6 +489,32 @@ describe('Push API Model tests', () => {
 		}
 	});
 
+	it('should throw error on invalid vapid header', async () => {
+		const model = new PushApiModel();
+		const subscriptionPublicKey = 'BLFs1fhFLaLQ1VUOsQ0gqysdZUigBkR729fgFLO99fTNRr9BJPY02JyOSXVqoPOYkG-nzNu83EEzpmeJgphXCoM';
+		const subscriptionPrivateKey = 'PSQe0Tyal7mYQxSWEB8PDE-03rhXabdWqIRPA28oczo';
+		const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+
+		const ecdh = crypto.createECDH('prime256v1');
+		ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
+		const testClientHash = 'testClientHash';
+		model.subscriptions[testClientHash] = {
+			applicationServerKey: testApplicationServerKey,
+			publicKey: subscriptionPublicKey,
+			subscriptionDh: ecdh,
+			auth: 'PST6Fru-E4BwgZ-WfuoLEA',
+		};
+
+		const expiredAuth = 'vapid t=meh,p=wrong';
+		try {
+			model.getVapidHeaderFields(expiredAuth);
+			assert.fail('Expected exception not thrown');
+		} catch (err) {
+			assert.instanceOf(err, Error);
+			assert.equal(err.message, 'Invalid Authorization header sent');
+		}
+	});
+
 	it('should throw range error if client is not subscribed', async () => {
 		const model = new PushApiModel();
 
@@ -504,33 +530,24 @@ describe('Push API Model tests', () => {
 	describe('Validate crypto', () => {
 		const input = [
 			{
-				description: 'Invalid type',
-				type: 'wrong',
-				publicServerKey: 'foobar',
-				savedPublicKey: 'foobar',
-				expectedError: true,
-			},
-			{
 				description: 'Mismatching keys',
-				type: 'p256ecdsa',
 				publicServerKey: 'foobar',
 				savedPublicKey: 'barfoo',
 				expectedError: true,
 			},
 			{
 				description: 'Correct key type & matching keys',
-				type: 'p256ecdsa',
 				publicServerKey: 'foobar',
 				savedPublicKey: 'foobar',
 				expectedError: false,
 			},
 		];
 
-		input.forEach(({description, type, publicServerKey, savedPublicKey, expectedError}) => {
+		input.forEach(({description, publicServerKey, savedPublicKey, expectedError}) => {
 			it(description, () => {
 				const model = new PushApiModel();
 				try {
-					model.validateCrypto(type, publicServerKey, savedPublicKey);
+					model.validateCrypto(publicServerKey, savedPublicKey);
 					if (expectedError) {
 						assert.fail('Did not throw exception even though one was expected');
 					}

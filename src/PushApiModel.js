@@ -161,6 +161,55 @@ class PushApiModel {
 		}
 	}
 
+	/**
+	 * Get parameters from header fields array (split by delimiter)
+	 * @param {string[]} headerFields
+	 * @returns {Object} Header fields object {key: value}
+	 */
+	getParametersFromHeaderFields(headerFields) {
+		const parameters = {};
+		headerFields.forEach(field => {
+			field = field.trim();
+			const [parameter, value] = field.split('=');
+			parameters[parameter] = value;
+		});
+
+		return parameters;
+	}
+
+	getCryptoKeyHeaderFields(headerString, isVapid) {
+		const cryptoKeyParameters = this.getParametersFromHeaderFields(headerString.split(';'));
+
+		if (!Object.prototype.hasOwnProperty.call(cryptoKeyParameters, 'dh')
+			|| (isVapid && !Object.prototype.hasOwnProperty.call(cryptoKeyParameters, 'p256ecdsa'))) {
+			throw new Error('Invalid Crypto-Key header sent');
+		}
+
+		const notificationDhBytes = this.base64UrlDecode(cryptoKeyParameters.dh);
+		if (notificationDhBytes.length !== 65 || notificationDhBytes[0] !== 4) {
+			throw new Error('Invalid Crypto-Key header sent');
+		}
+
+		return [cryptoKeyParameters.dh, cryptoKeyParameters.p256ecdsa];
+	}
+
+	getVapidHeaderFields(headerString) {
+		if (headerString.substr(0, 'vapid'.length) !== 'vapid') {
+			throw new Error('Invalid Authorization header sent');
+		}
+
+		headerString = headerString.substr('vapid'.length);
+
+		const authenticationParameters = this.getParametersFromHeaderFields(headerString.split(','));
+
+		if (!Object.prototype.hasOwnProperty.call(authenticationParameters, 't')
+			|| !Object.prototype.hasOwnProperty.call(authenticationParameters, 'k')) {
+			throw new Error('Invalid Authorization header sent');
+		}
+
+		return [authenticationParameters.t, authenticationParameters.k];
+	}
+
 	validateNotificationHeaders(subscription, headers) {
 		if (!Object.prototype.hasOwnProperty.call(headers, 'encoding') || (headers.encoding !== 'aesgcm' && headers.encoding !== 'aes128gcm')) {
 			throw new Error('Unsupported encoding');
@@ -176,11 +225,7 @@ class PushApiModel {
 		}
 	}
 
-	validateCrypto(type, publicServerKey, savedPublicServerKey) {
-		if (type !== 'p256ecdsa') {
-			throw new Error('Invalid Crypto-Key header sent');
-		}
-
+	validateCrypto(publicServerKey, savedPublicServerKey) {
 		const crypto = require('crypto');
 		const notificationEcdsaBytes = this.base64UrlDecode(publicServerKey);
 		const serverKeyBytes = this.base64UrlDecode(savedPublicServerKey);
@@ -213,33 +258,20 @@ class PushApiModel {
 				await this.validateAuthorizationHeader(clientHash, jwt);
 			}
 
-			const [dhType, notificationDh, ecdsaType, notificationEcdsa] = pushHeaders.cryptoKey.split(/[;=]/);
-			const notificationDhBytes = this.base64UrlDecode(notificationDh);
-			if (dhType !== 'dh' || this.base64UrlDecode(notificationDh).length !== 65 || notificationDhBytes[0] !== 4) {
-				throw new Error('Invalid Crypto-Key header sent');
-			}
+			const [notificationDh, notificationEcdsa] = this.getCryptoKeyHeaderFields(pushHeaders.cryptoKey, isVapid);
 
 			if (isVapid) {
-				this.validateCrypto(ecdsaType, notificationEcdsa, currentSubscription.applicationServerKey);
+				this.validateCrypto(notificationEcdsa, currentSubscription.applicationServerKey);
 			}
 
-			eceParameters.dh = notificationDhBytes;
+			eceParameters.dh = notificationDh;
 			eceParameters.salt = pushHeaders.encryption.substr('salt='.length);
 		} else if (isVapid && pushHeaders.encoding === 'aes128gcm') {
-			let [vapidHeaderString, notificationApplicationServerKey] = pushHeaders.authorization.split(',');
-			notificationApplicationServerKey = notificationApplicationServerKey ? notificationApplicationServerKey.trim() : '';
-			if (vapidHeaderString.substr(0, 'vapid t='.length) !== 'vapid t='
-				|| notificationApplicationServerKey.substr(0, 'k='.length) !== 'k=') {
-				throw new Error('Invalid Authorization header sent');
-			}
+			const [vapidToken, vapidKey] = this.getVapidHeaderFields(pushHeaders.authorization);
 
-			this.validateCrypto(
-				'p256ecdsa',
-				notificationApplicationServerKey.substr('k='.length),
-				currentSubscription.applicationServerKey,
-			);
+			this.validateCrypto(vapidKey, currentSubscription.applicationServerKey);
 
-			await this.validateAuthorizationHeader(clientHash, vapidHeaderString.substr('vapid t='.length));
+			await this.validateAuthorizationHeader(clientHash, vapidToken);
 		}
 
 		const crypto = require('crypto');
