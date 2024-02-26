@@ -10,7 +10,7 @@
  */
 
 const WebPushTestingServer = require('../src/server.js');
-const PushApiModel = require('../src/PushApiModel');
+const {PushApiModel} = require('../src/PushApiModel');
 const fetch = require('node-fetch');
 const crypto = require('crypto');
 const webPush = require('web-push');
@@ -255,10 +255,17 @@ describe('Push Server tests', () => {
 				expectedStatus: 201,
 			},
 			{
+				description: 'Expired notification with aes128gcm',
+				encoding: 'aes128gcm',
+				sendAuthorization: true,
+				expectedStatus: 410,
+				expectedError: 'Push subscription has unsubscribed or expired.',
+			},
+			{
 				description: 'Unsuccessful notification with wrong encoding',
 				encoding: 'wrong',
 				sendAuthorization: true,
-				expectedStatus: 410,
+				expectedStatus: 400,
 				expectedError: 'Unsupported encoding',
 			},
 			{
@@ -342,6 +349,17 @@ describe('Push Server tests', () => {
 					consoleLogs[0].should.match(/Server running/);
 				});
 
+				// Force subscription to expire
+				if (expectedStatus === 410) {
+					await fetch('http://localhost:' + port + '/expire-subscription/' + testClientHash, {
+						method: 'POST',
+					}).then(response => {
+						response.status.should.equal(200);
+						consoleLogs.length.should.equal(2);
+						consoleLogs[1].should.match(/Expire subscription for /);
+					});
+				}
+
 				await fetch('http://localhost:' + port + '/notify/' + testClientHash, {
 					method: 'POST',
 					headers: pushHeaders,
@@ -357,6 +375,10 @@ describe('Push Server tests', () => {
 							assert.hasAllKeys(notificationData, ['messages']);
 							notificationData.messages.length.should.equal(1);
 							notificationData.messages[0].should.equal('hello');
+						} else if (expectedStatus === 410) {
+							const responseBody = await response.json();
+							assert.hasAllKeys(responseBody, ['reason']);
+							responseBody.reason.should.equal(expectedError);
 						} else {
 							const responseBody = await response.json();
 							assert.hasAllKeys(responseBody, ['error']);

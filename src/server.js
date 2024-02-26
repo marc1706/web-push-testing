@@ -8,6 +8,7 @@
  * https://opensource.org/licenses/MIT.
  *
  */
+const {SubscriptionExpiredError} = require("./PushApiModel");
 
 let apiModel = {};
 
@@ -57,6 +58,7 @@ class WebPushTestingServer {
 		this._app.post('/status', this.getStatus);
 		this._app.post('/subscribe', this.subscribe);
 		this._app.post('/notify/:clientHash', this.handleNotification);
+		this._app.post('/expire-subscription/:clientHash', this.expireSubscription);
 		this._app.post('/get-notifications', this.getNotifications);
 	}
 
@@ -109,13 +111,27 @@ class WebPushTestingServer {
 			res.status(201).send(notificationReturn);
 		})
 			.catch(err => {
-				const status = err instanceof RangeError ? 400 : 410;
-				res.status(status).send({
-					error: {
-						message: err.message,
-					},
-				});
+				if (err instanceof SubscriptionExpiredError) {
+					res.status(410).send({
+						reason: 'Push subscription has unsubscribed or expired.',
+					});
+				} else {
+					res.status(400).send({
+						error: {
+							message: err.message,
+						},
+					});
+				}
 			});
+	}
+
+	expireSubscription(req, res) {
+		const {clientHash} = req.params;
+
+		apiModel.expireSubscription(clientHash);
+
+		console.log('Expire subscription for ' + clientHash);
+		res.sendStatus(200);
 	}
 }
 

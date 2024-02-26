@@ -9,6 +9,14 @@
  *
  */
 
+class SubscriptionExpiredError extends Error {
+	constructor(message) {
+		super(message);
+		this.name = 'SubscriptionExpiredError';
+		this.message = 'Subscription expired';
+	}
+}
+
 class PushApiModel {
 	constructor() {
 		this.notifyUrl = '';
@@ -134,6 +142,7 @@ class PushApiModel {
 					publicKey: subscriptionDh.getPublicKey('base64'),
 					subscriptionDh,
 					auth: uniqueAuthKey,
+					isExpired: false,
 				};
 				this.subscriptions[uniqueClientHash] = subscriptionData;
 				return {
@@ -145,6 +154,30 @@ class PushApiModel {
 					clientHash: uniqueClientHash,
 				};
 			});
+	}
+
+	/**
+	 * Expire subscription with specified client hash
+	 * @param {string} clientHash Unique client hash
+	 * @returns {void}
+	 */
+	expireSubscription(clientHash) {
+		if (typeof this.subscriptions[clientHash] !== 'undefined') {
+			this.subscriptions[clientHash].isExpired = true;
+		}
+	}
+
+	/**
+	 * Check if subscription with specified client hash is expired
+	 * @param {string} clientHash Unique client hash
+	 * @returns {boolean} True if subscription is expired, false if not
+	 */
+	isSubscriptionExpired(clientHash) {
+		if (typeof this.subscriptions[clientHash] !== 'undefined') {
+			return this.subscriptions[clientHash].isExpired;
+		}
+
+		return false;
 	}
 
 	async validateAuthorizationHeader(clientHash, jwt) {
@@ -239,7 +272,12 @@ class PushApiModel {
 			throw new RangeError('Client not subscribed');
 		}
 
+		if (this.isSubscriptionExpired(clientHash)) {
+			throw new SubscriptionExpiredError();
+		}
+
 		const currentSubscription = this.subscriptions[clientHash];
+
 		const isVapid = typeof currentSubscription.applicationServerKey !== 'undefined';
 
 		this.validateNotificationHeaders(currentSubscription, pushHeaders);
@@ -305,4 +343,7 @@ class PushApiModel {
 	}
 }
 
-module.exports = PushApiModel;
+module.exports = {
+	PushApiModel: PushApiModel,
+	SubscriptionExpiredError: SubscriptionExpiredError,
+};
