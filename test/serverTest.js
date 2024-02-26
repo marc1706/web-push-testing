@@ -300,7 +300,7 @@ describe('Push Server tests', () => {
 				const testLocalPublickey = 'BP_jupWySFrZB4vAqGmEJ9ZLlfLpg1fnP0SgBLmkx_e4sWe3b719Q_oh8FXe2nnTER0rmCJvUd6xmVNzUXMoLJQ';
 				const vapidHeaders = webPush.getVapidHeaders(
 					'http://localhost',
-					'http://test.com',
+					'https://test.com',
 					applicationServerKey,
 					applicationServerPrivateKey,
 					testClientHash,
