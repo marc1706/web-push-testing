@@ -162,10 +162,10 @@ class PushApiModel {
 	 * @returns {void}
 	 */
 	expireSubscription(clientHash) {
-		if (typeof this.subscriptions[clientHash] !== 'undefined') {
-			this.subscriptions[clientHash].isExpired = true;
-		} else {
+		if (typeof this.subscriptions[clientHash] === 'undefined') {
 			throw new RangeError('Subscription with specified client hash does not exist');
+		} else {
+			this.subscriptions[clientHash].isExpired = true;
 		}
 	}
 
@@ -346,6 +346,6 @@ class PushApiModel {
 }
 
 module.exports = {
-	PushApiModel: PushApiModel,
-	SubscriptionExpiredError: SubscriptionExpiredError,
+	PushApiModel,
+	SubscriptionExpiredError,
 };

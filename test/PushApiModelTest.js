@@ -196,19 +196,20 @@ describe('Push API Model tests', () => {
 			assert.isTrue(model.isSubscriptionExpired(subscribeReturn.clientHash));
 		});
 
-		it ('Invalid subscription is properly handled', async () => {
+		it('Invalid subscription is properly handled', async () => {
 			const model = new PushApiModel();
 
 			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
 
 			try {
 				model.expireSubscription('doesNotExist');
-			} catch(err) {
+			} catch (err) {
 				assert.instanceOf(err, RangeError);
 				assert.equal(err.message, 'Subscription with specified client hash does not exist');
 			}
+
 			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
-		})
+		});
 	});
 
 	describe('Validate notification headers', () => {

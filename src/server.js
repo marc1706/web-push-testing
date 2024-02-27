@@ -8,7 +8,7 @@
  * https://opensource.org/licenses/MIT.
  *
  */
-const {SubscriptionExpiredError} = require("./PushApiModel");
+const {SubscriptionExpiredError} = require('./PushApiModel');
 
 let apiModel = {};
 
@@ -134,7 +134,7 @@ class WebPushTestingServer {
 			res.status(400).send({
 				error: {
 					message: err.message,
-				}
+				},
 			});
 		}
 
