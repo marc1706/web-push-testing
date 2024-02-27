@@ -240,6 +240,37 @@ describe('Push Server tests', () => {
 		});
 	});
 
+	describe('Expire non-existent subscription', () => {
+		it('Should return 400', async () => {
+			const model = new PushApiModel();
+			const port = 8990;
+
+			const server = new WebPushTestingServer(model, port);
+			startLogging();
+			server.startServer();
+
+			await fetch('http://localhost:' + port + '/status', {
+				method: 'POST',
+			}).then(response => {
+				response.status.should.equal(200);
+				consoleLogs.length.should.equal(1);
+				consoleLogs[0].should.match(/Server running/);
+			});
+
+			// Try expiring a non-existent subscription
+			await fetch('http://localhost:' + port + '/expire-subscription/doesNotExist', {
+				method: 'POST',
+			}).then(async response => {
+				server._server.close();
+				endLogging();
+
+				response.status.should.equal(400);
+				const responseBody = await response.json();
+				responseBody.error.message.should.equal('Subscription with specified client hash does not exist');
+			});
+		});
+	});
+
 	describe('Send notifications', () => {
 		const input = [
 			{

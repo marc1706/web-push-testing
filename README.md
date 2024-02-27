@@ -65,17 +65,43 @@ Additional fields are specified in square brackets.
 - Output:
   ```
   {
-    data: PushSubscriptionJSON[+clientHash]
+      data: PushSubscriptionJSON[+clientHash]
   }
   ```
+  
+#### Expire subscription
+- URL: `http://localhost:8090/expire-subscription/[+clientHash]`
+- Input: None (expect for clientHash in URL)
+- Output:
+  - Status:
+    - 200 for success
+    - 400 on error e.g. when subscription does not exist
+  - Body:
+    - None for success
+    - Error return on error
 
 #### Send push notification
 - URL: `PushSubscriptionJSON.endpoint` (format: `http://localhost:8090/notify/[+clientHash]`)
 - Headers: See e.g. [RFC 8291](https://datatracker.ietf.org/doc/html/rfc8291) on required headers
 - Input: Encrypted payload
 - Output:
-  - Status: 201 for success, 400/410 on errors
-  - No body
+  - Status:
+    - 201 for success
+    - 400 on errors
+    - 410 on expired subscriptions
+  - Body
+    - Error:
+      ```
+      {
+          error: { message: err.message }
+      }
+      ```
+    - Expired subscription:
+      ```
+      {
+          reason: 'Push subscription has unsubscribed or expired.',
+      }
+      ```
 
 #### Get endpoint notifications
 - URL: `http://localhost:8090/get-notifications`

@@ -191,13 +191,24 @@ describe('Push API Model tests', () => {
 			assert.hasAllKeys(subscribeReturn.keys, ['p256dh', 'auth']);
 			assert.hasAllKeys(model.subscriptions, [subscribeReturn.clientHash]);
 
-			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
 			assert.isFalse(model.isSubscriptionExpired(subscribeReturn.clientHash));
 			model.expireSubscription(subscribeReturn.clientHash);
 			assert.isTrue(model.isSubscriptionExpired(subscribeReturn.clientHash));
-			model.expireSubscription('doesNotExist');
-			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
 		});
+
+		it ('Invalid subscription is properly handled', async () => {
+			const model = new PushApiModel();
+
+			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
+
+			try {
+				model.expireSubscription('doesNotExist');
+			} catch(err) {
+				assert.instanceOf(err, RangeError);
+				assert.equal(err.message, 'Subscription with specified client hash does not exist');
+			}
+			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
+		})
 	});
 
 	describe('Validate notification headers', () => {

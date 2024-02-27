@@ -128,7 +128,15 @@ class WebPushTestingServer {
 	expireSubscription(req, res) {
 		const {clientHash} = req.params;
 
-		apiModel.expireSubscription(clientHash);
+		try {
+			apiModel.expireSubscription(clientHash);
+		} catch (err) {
+			res.status(400).send({
+				error: {
+					message: err.message,
+				}
+			});
+		}
 
 		console.log('Expire subscription for ' + clientHash);
 		res.sendStatus(200);
