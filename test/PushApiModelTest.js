@@ -9,7 +9,7 @@
  *
  */
 
-const PushApiModel = require('../src/PushApiModel');
+const {PushApiModel, SubscriptionExpiredError} = require('../src/PushApiModel');
 require('chai').should();
 const {assert} = require('chai');
 const webPush = require('web-push');
@@ -174,6 +174,41 @@ describe('Push API Model tests', () => {
 					assert.hasAllKeys(model.subscriptions, [subscribeReturn.clientHash]);
 				}
 			});
+		});
+	});
+
+	describe('Expire subscription', () => {
+		it('Should expire subscription', async () => {
+			const model = new PushApiModel();
+			model.notifyUrl = 'https://localhost:12345';
+			const subscribeReturn = await model.subscribe({})
+				.catch(() => {
+					assert.fail('No error expected but exception is thrown');
+				});
+
+			assert.notTypeOf(subscribeReturn, 'undefined');
+			assert.hasAllKeys(subscribeReturn, ['endpoint', 'keys', 'clientHash']);
+			assert.hasAllKeys(subscribeReturn.keys, ['p256dh', 'auth']);
+			assert.hasAllKeys(model.subscriptions, [subscribeReturn.clientHash]);
+
+			assert.isFalse(model.isSubscriptionExpired(subscribeReturn.clientHash));
+			model.expireSubscription(subscribeReturn.clientHash);
+			assert.isTrue(model.isSubscriptionExpired(subscribeReturn.clientHash));
+		});
+
+		it('Invalid subscription is properly handled', async () => {
+			const model = new PushApiModel();
+
+			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
+
+			try {
+				model.expireSubscription('doesNotExist');
+			} catch (err) {
+				assert.instanceOf(err, RangeError);
+				assert.equal(err.message, 'Subscription with specified client hash does not exist');
+			}
+
+			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
 		});
 	});
 
@@ -460,6 +495,36 @@ describe('Push API Model tests', () => {
 			model.messages[testClientHash].length.should.equal(2);
 			model.messages[testClientHash][0].should.equal('hello');
 			model.messages[testClientHash][1].should.equal('hello');
+		});
+
+		it('Throw an error for expired subscription', async () => {
+			const model = new PushApiModel();
+			const testClientHash = 'testClientHash';
+			const subscriptionPublicKey = 'BIanZceKFE49T82cl2HUWK_vLQPVQPq5eZHP7y0zLWP1qDjlWe7Vx7XS8qetnPOJTZyZJrV26FST20e6CvThcmc';
+			const subscriptionPrivateKey = 'zs96vCXedR-vvXDsGLQJXeus2Ui2InrWQM1w0bh8O90';
+			const testApplicationServerKey = 'BJxKEp-nlH4ezWmgipyizTbPGOB6jQIuARETjLNp5wxSbnyzJ6NRgolhMy4CVThCAc1H6l_UC38nkBqcLcQx96c';
+
+			const ecdh = crypto.createECDH('prime256v1');
+			ecdh.setPrivateKey(model.base64UrlDecode(subscriptionPrivateKey));
+			model.subscriptions[testClientHash] = {
+				applicationServerKey: testApplicationServerKey,
+				publicKey: subscriptionPublicKey,
+				subscriptionDh: ecdh,
+				auth: 'kZTCk82psaREuK7YOM5mHA',
+				isExpired: true,
+			};
+
+			// Create WebPush Authorization header
+			const pushHeaders = {};
+
+			const requestBody = model.base64UrlDecode('r6gvu5db98El53AoxLdf6qe-Y2fSp9o');
+
+			try {
+				await model.handleNotification(testClientHash, pushHeaders, requestBody);
+			} catch (err) {
+				assert.instanceOf(err, SubscriptionExpiredError);
+				assert.equal(err.message, 'Subscription expired');
+			}
 		});
 	});
 
