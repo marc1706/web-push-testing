@@ -191,9 +191,12 @@ describe('Push API Model tests', () => {
 			assert.hasAllKeys(subscribeReturn.keys, ['p256dh', 'auth']);
 			assert.hasAllKeys(model.subscriptions, [subscribeReturn.clientHash]);
 
+			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
 			assert.isFalse(model.isSubscriptionExpired(subscribeReturn.clientHash));
 			model.expireSubscription(subscribeReturn.clientHash);
 			assert.isTrue(model.isSubscriptionExpired(subscribeReturn.clientHash));
+			model.expireSubscription('doesNotExist');
+			assert.isFalse(model.isSubscriptionExpired('doesNotExist'));
 		});
 	});
 
