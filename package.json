@@ -4,7 +4,7 @@
   "description": "A server that can be run to test against a mocked API endpoint for web push without relying on flaky browser drivers.",
   "main": "server.js",
   "bin": {
-    "web-push-testing": "./src/bin/cli.js"
+    "web-push-testing": "src/bin/cli.js"
   },
   "scripts": {
     "test": "mocha",
