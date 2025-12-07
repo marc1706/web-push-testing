@@ -18,7 +18,7 @@ The idea for this was inspired by see, using, and giving up on https://github.co
 - Fully tested
 
 ## Installation
-`web-push-testing` can be installed directly via npm. It requires node `>=15.0.0`:
+`web-push-testing` can be installed directly via npm. It requires node `>=20.0.0`:
 ```
 npm install web-push-testing
 ```
@@ -68,7 +68,7 @@ Additional fields are specified in square brackets.
       data: PushSubscriptionJSON[+clientHash]
   }
   ```
-  
+
 #### Expire subscription
 - URL: `http://localhost:8090/expire-subscription/[+clientHash]`
 - Input: None (expect for clientHash in URL)
