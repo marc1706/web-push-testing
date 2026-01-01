@@ -138,7 +138,6 @@ class WebPushTestingServer {
 			});
 		}
 
-		console.log('Expire subscription for ' + clientHash);
 		res.sendStatus(200);
 	}
 }
