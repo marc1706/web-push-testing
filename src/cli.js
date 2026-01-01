@@ -146,6 +146,8 @@ class WebPushTestingCli {
 			console.log(data.toString());
 			processData[this.port] = testingServer.pid;
 			this.storage.setItemSync('processData', processData);
+
+			testingServer.unref();
 			process.exit(0);
 		});
 

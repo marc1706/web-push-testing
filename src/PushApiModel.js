@@ -229,11 +229,11 @@ class PushApiModel {
 	}
 
 	getVapidHeaderFields(headerString) {
-		if (headerString.substr(0, 'vapid'.length) !== 'vapid') {
+		if (headerString.substring(0, 'vapid'.length) !== 'vapid') {
 			throw new Error('Invalid Authorization header sent');
 		}
 
-		headerString = headerString.substr('vapid'.length);
+		headerString = headerString.substring('vapid'.length);
 
 		const authenticationParameters = this.getParametersFromHeaderFields(headerString.split(','));
 
