@@ -423,51 +423,59 @@ describe('Push Server tests', () => {
 				startLogging();
 				server.startServer();
 
-				await fetch('http://localhost:' + port + '/status', {
-					method: 'POST',
-				}).then(response => {
-					response.status.should.equal(200);
-					consoleLogs.length.should.equal(1);
-					consoleLogs[0].should.match(/Server running/);
-				});
-
-				// Force subscription to expire
-				if (expectedStatus === 410) {
-					await fetch('http://localhost:' + port + '/expire-subscription/' + testClientHash, {
+				try {
+					await fetch('http://localhost:' + port + '/status', {
 						method: 'POST',
 					}).then(response => {
 						response.status.should.equal(200);
+						consoleLogs.length.should.equal(1);
+						consoleLogs[0].should.match(/Server running/);
 					});
-				}
 
-				await fetch('http://localhost:' + port + '/notify/' + testClientHash, {
-					method: 'POST',
-					headers: pushHeaders,
-					body: requestBody,
-				})
-					.then(async response => {
-						server._server.close();
-						endLogging();
-						response.status.should.equal(expectedStatus);
-						if (expectedStatus === 201) {
-							assert.isUndefined(response.body.error);
-							const notificationData = model.getNotifications({clientHash: testClientHash});
-							assert.hasAllKeys(notificationData, ['messages']);
-							notificationData.messages.length.should.equal(1);
-							notificationData.messages[0].should.equal('hello');
-						} else if (expectedStatus === 410) {
-							const responseBody = await response.json();
-							assert.hasAllKeys(responseBody, ['reason']);
-							responseBody.reason.should.equal(expectedError);
-						} else {
-							const responseBody = await response.json();
-							assert.hasAllKeys(responseBody, ['error']);
-							responseBody.error.message.should.equal(expectedError);
+					// Force subscription to expire
+					if (expectedStatus === 410) {
+						await fetch('http://localhost:' + port + '/expire-subscription/' + testClientHash, {
+							method: 'POST',
+						}).then(response => {
+							response.status.should.equal(200);
+						});
+					}
+
+					await fetch('http://localhost:' + port + '/notify/' + testClientHash, {
+						method: 'POST',
+						headers: pushHeaders,
+						body: requestBody,
+					})
+						.then(async response => {
+							server._server.close();
+							endLogging();
+							response.status.should.equal(expectedStatus);
+							if (expectedStatus === 201) {
+								assert.isUndefined(response.body.error);
+								const notificationData = model.getNotifications({clientHash: testClientHash});
+								assert.hasAllKeys(notificationData, ['messages']);
+								notificationData.messages.length.should.equal(1);
+								notificationData.messages[0].should.equal('hello');
+							} else if (expectedStatus === 410) {
+								const responseBody = await response.json();
+								assert.hasAllKeys(responseBody, ['reason']);
+								responseBody.reason.should.equal(expectedError);
+							} else {
+								const responseBody = await response.json();
+								assert.hasAllKeys(responseBody, ['error']);
+								responseBody.error.message.should.equal(expectedError);
+							}
+						});
+
+				} finally {
+					// Ensure server is always stopped and logging restored even if assertions fail
+					try {
+						if (server && server._server && server._server.listening) {
+							server._server.close();
 						}
-					});
-
-				if (server._server.listening) {
-					server._server.close();
+					} catch (e) {
+						// ignore errors while closing server during cleanup
+					}
 					endLogging();
 				}
 			});
