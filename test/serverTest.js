@@ -297,7 +297,7 @@ describe('Push Server tests', () => {
 				response.status.should.equal(200);
 				const responseBody = await response.json();
 				assert.hasAnyKeys(responseBody, ['data']);
-				const clientHash = responseBody.data.clientHash;
+				const {clientHash} = responseBody.data;
 
 				// Expire the subscription we just created
 				await fetch('http://localhost:' + port + '/expire-subscription/' + clientHash, {
@@ -466,16 +466,17 @@ describe('Push Server tests', () => {
 								responseBody.error.message.should.equal(expectedError);
 							}
 						});
-
 				} finally {
 					// Ensure server is always stopped and logging restored even if assertions fail
 					try {
 						if (server && server._server && server._server.listening) {
 							server._server.close();
 						}
-					} catch (e) {
-						// ignore errors while closing server during cleanup
+					} catch (exc) {
+						// ignore errors while closing server during cleanup but output them for visibility
+						console.log(exc);
 					}
+
 					endLogging();
 				}
 			});
