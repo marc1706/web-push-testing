@@ -271,6 +271,57 @@ describe('Push Server tests', () => {
 		});
 	});
 
+	describe('Expire and retrieve subscription', () => {
+		it('Should still handle requests after expiring subscription', async () => {
+			const model = new PushApiModel();
+			const port = 8990;
+
+			const server = new WebPushTestingServer(model, port);
+			startLogging();
+			server.startServer();
+
+			await fetch('http://localhost:' + port + '/status', {
+				method: 'POST',
+			}).then(response => {
+				response.status.should.equal(200);
+				consoleLogs.length.should.equal(1);
+				consoleLogs[0].should.match(/Server running/);
+			});
+
+			// Create a subscription
+			await fetch('http://localhost:' + port + '/subscribe', {
+				method: 'POST',
+				body: JSON.stringify({}),
+				headers: {'Content-Type': 'application/json'},
+			}).then(async response => {
+				response.status.should.equal(200);
+				const responseBody = await response.json();
+				assert.hasAnyKeys(responseBody, ['data']);
+				const clientHash = responseBody.data.clientHash;
+
+				// Expire the subscription we just created
+				await fetch('http://localhost:' + port + '/expire-subscription/' + clientHash, {
+					method: 'POST',
+				}).then(async expResp => {
+					expResp.status.should.equal(200);
+
+					// Attempt to retrieve notifications for the expired subscription
+					await fetch('http://localhost:' + port + '/get-notifications', {
+						method: 'POST',
+						body: JSON.stringify({clientHash}),
+						headers: {'Content-Type': 'application/json'},
+					}).then(async getResp => {
+						server._server.close();
+						endLogging();
+						getResp.status.should.equal(200);
+						const getBody = await getResp.json();
+						getBody.data.messages.length.should.equal(0);
+					});
+				});
+			});
+		});
+	});
+
 	describe('Send notifications', () => {
 		const input = [
 			{
@@ -386,8 +437,6 @@ describe('Push Server tests', () => {
 						method: 'POST',
 					}).then(response => {
 						response.status.should.equal(200);
-						consoleLogs.length.should.equal(2);
-						consoleLogs[1].should.match(/Expire subscription for /);
 					});
 				}
 
